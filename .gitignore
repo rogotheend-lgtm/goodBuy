@@ -1,0 +1,16 @@
+# Node / Vue
+frontend/node_modules/
+frontend/dist/
+
+# Java / Gradle
+backend-spring/.gradle/
+backend-spring/build/
+
+# Python
+backend-python/__pycache__/
+backend-python/venv/
+backend-python/.venv/
+
+# Environment / OS
+.env
+.DS_Store
