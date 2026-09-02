@@ -1,4 +1,0 @@
-{
-  "python.defaultInterpreterPath": "${workspaceFolder}/backend-python/ocrvenv/bin/python",
-  "python.terminal.activateEnvironment": true
-}
