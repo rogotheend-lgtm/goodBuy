@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExpenseParsedResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["transactions", "summary"],
+  "properties": {
+    "transactions": {
+      "type": "array",
+      "description": "파싱된 소비 내역 리스트",
+      "items": {
+        "$ref": "#/definitions/ExpenseItem"
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_count", "total_amount"],
+      "properties": {
+        "total_count": {
+          "type": "integer",
+          "description": "파싱된 소비 건수",
+          "minimum": 0
+        },
+        "total_amount": {
+          "type": "integer",
+          "description": "파싱된 거래 금액의 원본 총합 (원)",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "definitions": {
+    "ExpenseItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counterparty", "amount"],
+      "properties": {
+        "counterparty": {
+          "type": "string",
+          "description": "거래 대상 (가맹점명, 이체 수신자, 결제 플랫폼 등)",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "amount": {
+          "type": "integer",
+          "description": "거래 금액 (양의 정수)",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

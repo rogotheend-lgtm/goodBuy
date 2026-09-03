@@ -1,0 +1,48 @@
+{
+  "transactions": [
+    {
+      "counterparty": "세븐일레븐 광주산정고려점",
+      "amount": 16480
+    },
+    {
+      "counterparty": "세븐일레븐광주소촌이지점",
+      "amount": 2750
+    },
+    {
+      "counterparty": "버거앤타코",
+      "amount": 11600
+    },
+    {
+      "counterparty": "벌크커피하남소촌점",
+      "amount": 3000
+    },
+    {
+      "counterparty": "맘스터치소촌점",
+      "amount": 7900
+    },
+    {
+      "counterparty": "금호칼국수",
+      "amount": 7500
+    },
+    {
+      "counterparty": "토스페이_TOSS",
+      "amount": 630
+    },
+    {
+      "counterparty": "토스페이_TOSS",
+      "amount": 620
+    },
+    {
+      "counterparty": "다이소",
+      "amount": 6000
+    },
+    {
+      "counterparty": "389마트",
+      "amount": 1200
+    }
+  ],
+  "summary": {
+    "total_count": 10,
+    "total_amount": 57680
+  }
+}

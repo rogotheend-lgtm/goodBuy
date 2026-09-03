@@ -35,6 +35,7 @@
 # Logs
 *.log
 logs/
+.goodbuy-runtime/
 
 # Java / Spring Boot / Gradle
 .gradle/
