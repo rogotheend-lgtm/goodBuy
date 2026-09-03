@@ -1,0 +1,62 @@
+services:
+  # 1. Python OCR Service
+  backend-python:
+    build:
+      context: ./backend-python
+      dockerfile: Dockerfile
+    container_name: goodbuy-python
+    ports:
+      - "8000:8000"
+    environment:
+      - OCR_MODE=${PYTHON_OCR_MODE:-paddle}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # 2. Spring Backend Service
+  backend-spring:
+    build:
+      context: ./backend-spring
+      dockerfile: Dockerfile
+    container_name: goodbuy-spring
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.local
+    environment:
+      - SPRING_PROFILES_ACTIVE=supabase
+      - OCR_MODE=python
+      # 컨테이너 간 통신을 위해 localhost 대신 서비스명(backend-python) 사용
+      - OCR_BASE_URL=http://backend-python:8000
+      #- SUPABASE_DB_URL=${SUPABASE_DB_URL}
+      #- SUPABASE_DB_USER=${SUPABASE_DB_USER}
+      #- SUPABASE_DB_PASSWORD=${SUPABASE_DB_PASSWORD}
+    depends_on:
+      backend-python:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 10s       # 검사 간격을 10초로 변경
+      timeout: 5s
+      retries: 6          # 총 60초까지 부팅 대기하도록 설정
+      start_period: 30s   # 애플리케이션 초기 부팅 유예 시간 30초 부여
+    restart: unless-stopped
+
+  # 3. Vue Frontend Service
+  frontend:
+    build:
+      context: ./frontend/goodBuy
+      dockerfile: Dockerfile
+    container_name: goodbuy-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080
+      - VITE_ANALYSIS_MODE=backend
+    depends_on:
+      backend-spring:
+        condition: service_healthy
+    restart: unless-stopped

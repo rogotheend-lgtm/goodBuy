@@ -128,6 +128,8 @@ docker-compose.override.yaml
 docker-compose.override.yml
 docker-data/
 .docker-data/
+Dockerfile
+compose.yaml
 
 # Miscellaneous temporary files
 *.tmp
