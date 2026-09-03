@@ -96,7 +96,9 @@ backend-python/output/
 backend-python/outputs/
 backend-python/tests/fixtures/generated/
 backend-python/tests/samples/*
-!backend-python/tests/samples/userEX.png
+
+# Never commit the personal OCR sample image.
+**/[Uu]ser[Ee][Xx].png
 
 # Node.js / Vue / Vite
 node_modules/
