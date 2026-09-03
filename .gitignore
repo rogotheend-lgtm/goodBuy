@@ -21,10 +21,8 @@
 *~
 
 # Ignore personal VS Code settings, but allow shared project settings.
-**/.vscode/*
-!**/.vscode/settings.json
-!**/.vscode/launch.json
-!**/.vscode/extensions.json
+.vscode/
+**/.vscode/
 
 # Environment variables and local secrets
 .env
@@ -83,6 +81,7 @@ coverage.xml
 *.egg-info/
 .eggs/
 pip-wheel-metadata/
+backend-python/**/__init__.py
 
 # PaddleOCR / PaddleX cache
 .paddlex/
@@ -128,8 +127,6 @@ docker-compose.override.yaml
 docker-compose.override.yml
 docker-data/
 .docker-data/
-Dockerfile
-compose.yaml
 
 # Miscellaneous temporary files
 *.tmp
