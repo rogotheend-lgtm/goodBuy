@@ -192,4 +192,3 @@ FROM categories c
 LEFT JOIN category_rules r ON r.category_id = c.category_id
 GROUP BY c.category_id, c.category_name, c.dutch_threshold
 ORDER BY c.category_id;
-
