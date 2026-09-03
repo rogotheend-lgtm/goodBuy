@@ -7,7 +7,7 @@ public record ClassifiedTransaction(
 		TransactionType transactionType,
 		PurposeCategory purposeCategory,
 		MerchantType merchantType,
-		DecisionSource decisionSource,
-		boolean requiresReview,
-		ReviewReason reviewReason) {
+		boolean anomaly,
+		AnomalyReason anomalyReason,
+		String anomalyDetail) {
 }

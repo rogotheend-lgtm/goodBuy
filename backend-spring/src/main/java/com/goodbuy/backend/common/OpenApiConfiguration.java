@@ -14,7 +14,7 @@ public class OpenApiConfiguration {
 		return new OpenAPI()
 				.info(new Info()
 						.title("goodBuy 소비 분석 API")
-						.description("익명 사용자의 거래내역 이미지를 분석하고 소비 내역을 분류하는 Spring Backend API")
+						.description("이미지를 한 번 요청받아 소비 분석 결과를 DB에 저장하고 이상치 상세 내용을 즉시 반환하는 Spring Backend API")
 						.version("v1")
 						.contact(new Contact().name("goodBuy Backend Team")));
 	}

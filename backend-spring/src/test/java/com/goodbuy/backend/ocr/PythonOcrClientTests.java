@@ -34,7 +34,7 @@ class PythonOcrClientTests {
 		server = MockRestServiceServer.bindTo(builder).build();
 		OcrClientProperties properties = new OcrClientProperties(
 				"http://python-ocr",
-				"/internal/v1/ocr/parse",
+				"/ocr/extraction",
 				Duration.ofSeconds(3),
 				Duration.ofSeconds(15));
 		OcrResponseValidator validator = new OcrResponseValidator(
@@ -53,7 +53,7 @@ class PythonOcrClientTests {
 				  "summary": {"total_count": 1, "total_amount": 3000}
 				}
 				""";
-		server.expect(once(), requestTo("http://python-ocr/internal/v1/ocr/parse"))
+		server.expect(once(), requestTo("http://python-ocr/ocr/extraction"))
 				.andExpect(method(HttpMethod.POST))
 				.andRespond(withSuccess(responseJson, MediaType.APPLICATION_JSON));
 
@@ -67,7 +67,7 @@ class PythonOcrClientTests {
 
 	@Test
 	void mapsPythonServerFailureToOcrServiceException() {
-		server.expect(once(), requestTo("http://python-ocr/internal/v1/ocr/parse"))
+		server.expect(once(), requestTo("http://python-ocr/ocr/extraction"))
 				.andRespond(withServerError());
 
 		assertThrows(

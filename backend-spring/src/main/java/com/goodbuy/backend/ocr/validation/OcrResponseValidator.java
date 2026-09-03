@@ -10,6 +10,7 @@ import java.util.Comparator;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/** Python 응답의 필수값과 summary 합계가 실제 거래 목록과 일치하는지 검증합니다. */
 @Component
 public class OcrResponseValidator {
 
@@ -35,6 +36,7 @@ public class OcrResponseValidator {
 
 		long calculatedAmount;
 		try {
+			// Python이 보낸 summary를 그대로 신뢰하지 않고 Spring에서 다시 더합니다.
 			calculatedAmount = response.transactions().stream()
 					.mapToLong(transaction -> transaction.amount())
 					.reduce(0L, Math::addExact);

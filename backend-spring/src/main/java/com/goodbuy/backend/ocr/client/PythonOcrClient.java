@@ -16,6 +16,10 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+/**
+ * Spring에서 Python OCR 서버로 이미지를 전달하는 어댑터입니다.
+ * {@code OCR_MODE=python}일 때만 활성화됩니다.
+ */
 @Component
 @ConditionalOnProperty(name = "goodbuy.ocr.mode", havingValue = "python")
 public class PythonOcrClient implements OcrPort {
@@ -36,6 +40,7 @@ public class PythonOcrClient implements OcrPort {
 	@Override
 	public OcrParsedResponse parse(OcrRequest request) {
 		try {
+			// Python 계약에 맞춰 이미지 한 장을 multipart/form-data로 전송합니다.
 			OcrParsedResponse response = restClient.post()
 					.uri(properties.parsePath())
 					.contentType(MediaType.MULTIPART_FORM_DATA)
@@ -57,6 +62,7 @@ public class PythonOcrClient implements OcrPort {
 	}
 
 	private MultiValueMap<String, Object> createMultipartBody(OcrRequest request) {
+		// byte[]를 파일 파트처럼 전송하기 위해 원본 파일명을 함께 제공합니다.
 		ByteArrayResource imageResource = new ByteArrayResource(request.content()) {
 			@Override
 			public String getFilename() {
@@ -68,7 +74,7 @@ public class PythonOcrClient implements OcrPort {
 		imageHeaders.setContentType(MediaType.parseMediaType(request.contentType()));
 
 		MultiValueMap<String, Object> parts = new LinkedMultiValueMap<>();
-		parts.add("image", new HttpEntity<>(imageResource, imageHeaders));
+		parts.add("file", new HttpEntity<>(imageResource, imageHeaders));
 		return parts;
 	}
 }

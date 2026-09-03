@@ -1,11 +1,6 @@
 package com.goodbuy.backend.analysis.persistence;
 
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
-import com.goodbuy.backend.analysis.domain.DecisionSource;
-import com.goodbuy.backend.analysis.domain.MerchantType;
-import com.goodbuy.backend.analysis.domain.PurposeCategory;
-import com.goodbuy.backend.analysis.domain.ReviewReason;
-import com.goodbuy.backend.analysis.domain.TransactionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -19,9 +14,10 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
+/** Spring이 최종 분류한 거래 한 건을 저장합니다. */
 @Entity
 @Table(name = "expense_transaction")
-public class ExpenseTransactionEntity {
+class ExpenseTransactionEntity {
 
 	@Id
 	private UUID id;
@@ -44,26 +40,28 @@ public class ExpenseTransactionEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "transaction_type", nullable = false, length = 30)
-	private TransactionType transactionType;
+	private com.goodbuy.backend.analysis.domain.TransactionType transactionType;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "purpose_category", nullable = false, length = 30)
-	private PurposeCategory purposeCategory;
+	private com.goodbuy.backend.analysis.domain.PurposeCategory purposeCategory;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "merchant_type", nullable = false, length = 30)
-	private MerchantType merchantType;
+	private com.goodbuy.backend.analysis.domain.MerchantType merchantType;
 
-	@Enumerated(EnumType.STRING)
 	@Column(name = "decision_source", nullable = false, length = 20)
-	private DecisionSource decisionSource;
+	private String decisionSource;
 
-	@Column(name = "requires_review", nullable = false)
-	private boolean requiresReview;
+	@Column(nullable = false)
+	private boolean anomaly;
 
 	@Enumerated(EnumType.STRING)
-	@Column(name = "review_reason", nullable = false, length = 50)
-	private ReviewReason reviewReason;
+	@Column(name = "anomaly_reason", nullable = false, length = 50)
+	private com.goodbuy.backend.analysis.domain.AnomalyReason anomalyReason;
+
+	@Column(name = "anomaly_detail", length = 300)
+	private String anomalyDetail;
 
 	@Column(name = "created_at", nullable = false)
 	private Instant createdAt;
@@ -74,7 +72,7 @@ public class ExpenseTransactionEntity {
 	protected ExpenseTransactionEntity() {
 	}
 
-	public ExpenseTransactionEntity(
+	ExpenseTransactionEntity(
 			UUID id,
 			AnalysisEntity analysis,
 			int itemOrder,
@@ -89,57 +87,11 @@ public class ExpenseTransactionEntity {
 		this.transactionType = transaction.transactionType();
 		this.purposeCategory = transaction.purposeCategory();
 		this.merchantType = transaction.merchantType();
-		this.decisionSource = transaction.decisionSource();
-		this.requiresReview = transaction.requiresReview();
-		this.reviewReason = transaction.reviewReason();
+		this.decisionSource = "SYSTEM";
+		this.anomaly = transaction.anomaly();
+		this.anomalyReason = transaction.anomalyReason();
+		this.anomalyDetail = transaction.anomalyDetail();
 		this.createdAt = now;
-		this.updatedAt = now;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getAnalysisId() {
-		return analysis.getId();
-	}
-
-	public int getItemOrder() {
-		return itemOrder;
-	}
-
-	public long getOriginalAmount() {
-		return originalAmount;
-	}
-
-	public PurposeCategory getPurposeCategory() {
-		return purposeCategory;
-	}
-
-	public ClassifiedTransaction toDomain() {
-		return new ClassifiedTransaction(
-				counterparty,
-				originalAmount,
-				personalAmount,
-				transactionType,
-				purposeCategory,
-				merchantType,
-				decisionSource,
-				requiresReview,
-				reviewReason);
-	}
-
-	public void applyUserDecision(
-			TransactionType transactionType,
-			PurposeCategory purposeCategory,
-			long personalAmount,
-			Instant now) {
-		this.transactionType = transactionType;
-		this.purposeCategory = purposeCategory;
-		this.personalAmount = personalAmount;
-		this.decisionSource = DecisionSource.USER;
-		this.requiresReview = false;
-		this.reviewReason = ReviewReason.NONE;
 		this.updatedAt = now;
 	}
 }

@@ -1,9 +1,9 @@
 package com.goodbuy.backend.analysis;
 
 import com.goodbuy.backend.analysis.domain.AnalysisSummary;
+import com.goodbuy.backend.analysis.domain.AnomalyReason;
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
 import com.goodbuy.backend.analysis.domain.MerchantType;
-import com.goodbuy.backend.analysis.domain.ReviewReason;
 import com.goodbuy.backend.analysis.domain.TransactionType;
 import com.goodbuy.backend.analysis.service.AnalysisSummaryCalculator;
 import com.goodbuy.backend.analysis.service.GroupPaymentPolicy;
@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionClassifierTests {
@@ -41,7 +40,9 @@ class TransactionClassifierTests {
 
 		assertEquals(TransactionType.SELF_TRANSFER, transaction.transactionType());
 		assertEquals(0, transaction.personalAmount());
-		assertFalse(transaction.requiresReview());
+		assertTrue(transaction.anomaly());
+		assertEquals(AnomalyReason.SELF_TRANSFER, transaction.anomalyReason());
+		assertTrue(transaction.anomalyDetail().contains("본인 계좌 이체"));
 	}
 
 	@Test
@@ -55,14 +56,15 @@ class TransactionClassifierTests {
 	}
 
 	@Test
-	void requiresReviewForAmbiguousPaymentGateway() {
+	void outputsAnomalyForAmbiguousPaymentGateway() {
 		ClassifiedTransaction transaction = classifier.classify(
 				"김세빈",
 				new OcrTransactionItem("토스페이_TOSS", 630));
 
-		assertEquals(TransactionType.NEEDS_REVIEW, transaction.transactionType());
-		assertEquals(ReviewReason.AMBIGUOUS_PAYMENT_GATEWAY, transaction.reviewReason());
-		assertTrue(transaction.requiresReview());
+		assertEquals(TransactionType.ANOMALY, transaction.transactionType());
+		assertEquals(AnomalyReason.AMBIGUOUS_PAYMENT_GATEWAY, transaction.anomalyReason());
+		assertTrue(transaction.anomaly());
+		assertTrue(transaction.anomalyDetail().contains("결제와 송금을 구분"));
 	}
 
 	@Test
@@ -74,13 +76,14 @@ class TransactionClassifierTests {
 				"김세빈",
 				new OcrTransactionItem("소촌숯불갈비", 40_000));
 
-		assertEquals(TransactionType.NEEDS_REVIEW, cafe.transactionType());
-		assertEquals(ReviewReason.GROUP_PAYMENT_CANDIDATE, cafe.reviewReason());
+		assertEquals(TransactionType.ANOMALY, cafe.transactionType());
+		assertEquals(AnomalyReason.GROUP_PAYMENT_CANDIDATE, cafe.anomalyReason());
+		assertTrue(cafe.anomalyDetail().contains("3배 기준"));
 		assertEquals(TransactionType.EXPENSE, meatRestaurant.transactionType());
 	}
 
 	@Test
-	void calculatesOnlyConfirmedPersonalExpenses() {
+	void calculatesExpensesAndOutputsAllDetectedAnomalies() {
 		List<ClassifiedTransaction> transactions = List.of(
 				classifier.classify("김세빈", new OcrTransactionItem("김세빈", 50_000)),
 				classifier.classify("김세빈", new OcrTransactionItem("맘스터치", 7_900)),
@@ -91,6 +94,7 @@ class TransactionClassifierTests {
 		assertEquals(58_530, summary.parsedAmount());
 		assertEquals(7_900, summary.expenseAmount());
 		assertEquals(50_000, summary.selfTransferAmount());
-		assertEquals(1, summary.needsReviewCount());
+		assertEquals(2, summary.anomalyCount());
+		assertEquals(50_630, summary.anomalyAmount());
 	}
 }

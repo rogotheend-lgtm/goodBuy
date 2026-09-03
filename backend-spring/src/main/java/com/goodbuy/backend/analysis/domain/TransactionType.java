@@ -4,5 +4,5 @@ public enum TransactionType {
 	EXPENSE,
 	SELF_TRANSFER,
 	OTHER_PERSON,
-	NEEDS_REVIEW
+	ANOMALY
 }

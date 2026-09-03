@@ -10,6 +10,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * 프론트엔드가 보낸 이름과 이미지를 OCR 호출 전에 검사합니다.
+ * 검증을 통과한 파일만 메모리 기반 {@link OcrRequest}로 변환합니다.
+ */
 @Component
 public class AnalysisRequestValidator {
 
@@ -69,6 +73,7 @@ public class AnalysisRequestValidator {
 	}
 
 	private boolean hasValidSignature(byte[] content, String contentType) {
+		// Content-Type만 믿지 않고 파일 시작 바이트도 확인해 위장 파일을 막습니다.
 		if (MediaType.IMAGE_PNG_VALUE.equals(contentType)) {
 			return content.length >= 8
 					&& (content[0] & 0xFF) == 0x89

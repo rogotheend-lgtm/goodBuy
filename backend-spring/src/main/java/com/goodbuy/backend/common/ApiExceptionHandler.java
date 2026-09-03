@@ -18,11 +18,6 @@ public class ApiExceptionHandler {
 		return problem(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", exception.getMessage());
 	}
 
-	@ExceptionHandler(ResourceNotFoundException.class)
-	ResponseEntity<ProblemDetail> handleNotFound(ResourceNotFoundException exception) {
-		return problem(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", exception.getMessage());
-	}
-
 	@ExceptionHandler({OcrServiceException.class, InvalidOcrResponseException.class})
 	ResponseEntity<ProblemDetail> handleOcrFailure(RuntimeException exception) {
 		return problem(HttpStatus.BAD_GATEWAY, "OCR_SERVICE_ERROR", exception.getMessage());

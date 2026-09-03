@@ -1,12 +1,12 @@
 package com.goodbuy.backend.analysis;
 
 import com.goodbuy.backend.PostgresIntegrationTest;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -17,11 +17,10 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -39,6 +38,9 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private JdbcTemplate jdbcTemplate;
 
 	@Test
 	void servesBrowserApiTesterAtRoot() throws Exception {
@@ -65,8 +67,8 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 		JsonNode document = objectMapper.readTree(result.getResponse().getContentAsByteArray());
 		assertEquals("goodBuy 소비 분석 API", document.get("info").get("title").stringValue());
 		assertNotNull(document.get("paths").get("/api/v1/analyses").get("post"));
-		assertNotNull(document.get("paths").get("/api/v1/analyses/{analysisId}").get("get"));
-		assertNotNull(document.get("paths").get("/api/v1/transactions/{transactionId}").get("patch"));
+		assertNull(document.get("paths").get("/api/v1/analyses/{analysisId}"));
+		assertNull(document.get("paths").get("/api/v1/transactions/{transactionId}"));
 		JsonNode multipartSchema = document.get("paths")
 				.get("/api/v1/analyses")
 				.get("post")
@@ -93,42 +95,24 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 
 		String html = page.getResponse().getContentAsString(StandardCharsets.UTF_8);
 		assertTrue(html.contains("Backend API 한눈에 보기"));
-		assertTrue(html.contains("/api/v1/analyses/{analysisId}"));
-		assertTrue(html.contains("/internal/v1/ocr/parse"));
+		assertTrue(html.contains("외부 API 1개"));
+		assertTrue(html.contains("/ocr/extraction"));
 	}
 
 	@Test
-	void analyzesImagePersistsResultAndAllowsReviewWithinSameAnonymousSession() throws Exception {
+	void analyzesImageAndReturnsAnomalyDetailsWithoutUserInput() throws Exception {
+		int analysisCountBefore = countRows("analysis");
+		int transactionCountBefore = countRows("expense_transaction");
 		MvcResult analysisResult = createAnalysis();
-		Cookie sessionCookie = analysisResult.getResponse().getCookie("goodbuy_session");
-		assertNotNull(sessionCookie);
 
 		JsonNode response = objectMapper.readTree(analysisResult.getResponse().getContentAsByteArray());
-		String analysisId = response.get("analysisId").stringValue();
-		String reviewTransactionId = response.get("transactions").get(6).get("id").stringValue();
-
-		mockMvc.perform(get("/api/v1/analyses/{analysisId}", analysisId).cookie(sessionCookie))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.summary.expenseAmount").value(56_430))
-				.andExpect(jsonPath("$.summary.needsReviewCount").value(2));
-
-		String reviewJson = """
-				{
-				  "transactionType": "EXPENSE",
-				  "purposeCategory": "FOOD",
-				  "personalAmount": 630
-				}
-				""";
-		mockMvc.perform(patch("/api/v1/transactions/{transactionId}", reviewTransactionId)
-						.cookie(sessionCookie)
-						.contentType(MediaType.APPLICATION_JSON)
-						.content(reviewJson))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.summary.expenseAmount").value(57_060))
-				.andExpect(jsonPath("$.summary.needsReviewCount").value(1));
-
-		mockMvc.perform(get("/api/v1/analyses/{analysisId}", analysisId))
-				.andExpect(status().isNotFound());
+		assertNull(response.get("analysisId"));
+		assertEquals(56_430, response.get("summary").get("expenseAmount").longValue());
+		assertEquals(2, response.get("summary").get("anomalyCount").intValue());
+		assertEquals("ANOMALY", response.get("transactions").get(6).get("transactionType").stringValue());
+		assertTrue(response.get("transactions").get(6).get("anomalyDetail").stringValue().contains("이상치"));
+		assertEquals(analysisCountBefore + 1, countRows("analysis"));
+		assertEquals(transactionCountBefore + 10, countRows("expense_transaction"));
 	}
 
 	@Test
@@ -157,12 +141,12 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 						.file(secondImage)
 						.file(ownerName))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.status").value("COMPLETED"))
 				.andExpect(jsonPath("$.summary.parsedCount").value(20))
 				.andExpect(jsonPath("$.summary.parsedAmount").value(115_360))
 				.andExpect(jsonPath("$.summary.expenseCount").value(16))
 				.andExpect(jsonPath("$.summary.expenseAmount").value(112_860))
-				.andExpect(jsonPath("$.summary.needsReviewCount").value(4))
+				.andExpect(jsonPath("$.summary.anomalyCount").value(4))
+				.andExpect(jsonPath("$.summary.anomalyAmount").value(2_500))
 				.andExpect(jsonPath("$.transactions.length()").value(20));
 	}
 
@@ -181,24 +165,6 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 				.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
-	@Test
-	void preventsAnotherAnonymousSessionFromReadingAnAnalysis() throws Exception {
-		MvcResult firstAnalysis = createAnalysis();
-		String firstAnalysisId = objectMapper
-				.readTree(firstAnalysis.getResponse().getContentAsByteArray())
-				.get("analysisId")
-				.stringValue();
-
-		MvcResult secondAnalysis = createAnalysis();
-		Cookie secondSessionCookie = secondAnalysis.getResponse().getCookie("goodbuy_session");
-		assertNotNull(secondSessionCookie);
-
-		mockMvc.perform(get("/api/v1/analyses/{analysisId}", firstAnalysisId)
-						.cookie(secondSessionCookie))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.code").value("RESOURCE_NOT_FOUND"));
-	}
-
 	private MvcResult createAnalysis() throws Exception {
 		MockMultipartFile image = new MockMultipartFile(
 				"images", "transactions.png", MediaType.IMAGE_PNG_VALUE, PNG_CONTENT);
@@ -207,14 +173,18 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 
 		return mockMvc.perform(multipart("/api/v1/analyses").file(image).file(ownerName))
 				.andExpect(status().isOk())
-				.andExpect(cookie().exists("goodbuy_session"))
-				.andExpect(cookie().httpOnly("goodbuy_session", true))
-				.andExpect(jsonPath("$.status").value("COMPLETED"))
+				.andExpect(result -> assertNull(result.getResponse().getCookie("goodbuy_session")))
+				.andExpect(jsonPath("$.analysisId").doesNotExist())
 				.andExpect(jsonPath("$.summary.parsedCount").value(10))
 				.andExpect(jsonPath("$.summary.parsedAmount").value(57_680))
 				.andExpect(jsonPath("$.summary.expenseCount").value(8))
 				.andExpect(jsonPath("$.summary.expenseAmount").value(56_430))
-				.andExpect(jsonPath("$.summary.needsReviewCount").value(2))
+				.andExpect(jsonPath("$.summary.anomalyCount").value(2))
+				.andExpect(jsonPath("$.summary.anomalyAmount").value(1_250))
 				.andReturn();
+	}
+
+	private int countRows(String tableName) {
+		return jdbcTemplate.queryForObject("SELECT count(*) FROM " + tableName, Integer.class);
 	}
 }

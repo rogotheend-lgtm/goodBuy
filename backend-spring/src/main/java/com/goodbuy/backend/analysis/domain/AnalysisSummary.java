@@ -16,6 +16,8 @@ public record AnalysisSummary(
 		long selfTransferAmount,
 		@Schema(description = "다른 사람 거래로 제외된 금액", example = "0")
 		long otherPersonAmount,
-		@Schema(description = "사용자 확인이 필요한 건수", example = "2")
-		int needsReviewCount) {
+		@Schema(description = "시스템이 감지한 이상 거래 건수", example = "2")
+		int anomalyCount,
+		@Schema(description = "이상 거래 원본 금액 합계", example = "1250")
+		long anomalyAmount) {
 }

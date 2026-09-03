@@ -15,12 +15,12 @@ public class OcrClientConfiguration {
 	@Bean
 	@Qualifier("pythonOcrRestClient")
 	@ConditionalOnProperty(name = "goodbuy.ocr.mode", havingValue = "python")
-	RestClient pythonOcrRestClient(RestClient.Builder builder, OcrClientProperties properties) {
+	RestClient pythonOcrRestClient(OcrClientProperties properties) {
 		SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
 		requestFactory.setConnectTimeout(properties.connectTimeout());
 		requestFactory.setReadTimeout(properties.readTimeout());
 
-		return builder
+		return RestClient.builder()
 				.baseUrl(properties.baseUrl())
 				.requestFactory(requestFactory)
 				.build();
