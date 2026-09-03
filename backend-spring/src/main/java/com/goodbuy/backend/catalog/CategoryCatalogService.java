@@ -6,6 +6,8 @@ import com.goodbuy.backend.catalog.persistence.CategoryMappingRow;
 import com.goodbuy.backend.catalog.persistence.CategoryRuleReadRepository;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.List;
@@ -14,37 +16,33 @@ import java.util.List;
 @Service
 public class CategoryCatalogService {
 
-	private static final long[] RETRY_DELAYS_MILLIS = {0, 250, 750, 1_500};
-	private static final String UNAVAILABLE_MESSAGE =
-			"카테고리 기준 정보를 불러오지 못했습니다. 잠시 후 다시 분석해주세요.";
+	private static final Logger log = LoggerFactory.getLogger(CategoryCatalogService.class);
 
 	private final CategoryRuleReadRepository repository;
 	private final NameNormalizer normalizer;
+	private final FallbackCategoryCatalog fallbackCatalog;
 
-	public CategoryCatalogService(CategoryRuleReadRepository repository, NameNormalizer normalizer) {
+	public CategoryCatalogService(
+			CategoryRuleReadRepository repository,
+			NameNormalizer normalizer,
+			FallbackCategoryCatalog fallbackCatalog) {
 		this.repository = repository;
 		this.normalizer = normalizer;
+		this.fallbackCatalog = fallbackCatalog;
 	}
 
-	public List<CategoryMapping> loadMappings() {
-		DataAccessException lastFailure = null;
-
-		for (long delayMillis : RETRY_DELAYS_MILLIS) {
-			waitBeforeRetry(delayMillis);
-			try {
-				List<CategoryMapping> mappings = convert(repository.findAllCategoryMappings());
-				if (containsOtherCategory(mappings)) {
-					return mappings;
-				}
-			} catch (DataAccessException exception) {
-				lastFailure = exception;
+	public CategoryCatalogSnapshot loadCatalog() {
+		try {
+			List<CategoryMapping> mappings = convert(repository.findAllCategoryMappings());
+			if (containsOtherCategory(mappings)) {
+				return new CategoryCatalogSnapshot(mappings, CategoryCatalogSource.DATABASE);
 			}
+			log.warn("Category catalog is empty or has no OTHER category; using fallback catalog");
+		} catch (DataAccessException | IllegalStateException exception) {
+			log.warn("Category database unavailable; using fallback catalog: {}", exception.getMessage());
 		}
 
-		if (lastFailure != null) {
-			throw new CategoryCatalogUnavailableException(UNAVAILABLE_MESSAGE, lastFailure);
-		}
-		throw new CategoryCatalogUnavailableException(UNAVAILABLE_MESSAGE);
+		return new CategoryCatalogSnapshot(fallbackCatalog.mappings(), CategoryCatalogSource.FALLBACK);
 	}
 
 	private List<CategoryMapping> convert(List<CategoryMappingRow> rows) {
@@ -80,15 +78,4 @@ public class CategoryCatalogService {
 		return keyword == null ? -1 : keyword.length();
 	}
 
-	private void waitBeforeRetry(long delayMillis) {
-		if (delayMillis == 0) {
-			return;
-		}
-		try {
-			Thread.sleep(delayMillis);
-		} catch (InterruptedException exception) {
-			Thread.currentThread().interrupt();
-			throw new CategoryCatalogUnavailableException(UNAVAILABLE_MESSAGE, exception);
-		}
-	}
 }

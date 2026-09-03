@@ -6,7 +6,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 public abstract class PostgresIntegrationTest {
 
 	@Container
@@ -20,5 +20,6 @@ public abstract class PostgresIntegrationTest {
 		registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
 		registry.add("spring.datasource.username", POSTGRES::getUsername);
 		registry.add("spring.datasource.password", POSTGRES::getPassword);
+		registry.add("spring.flyway.enabled", () -> true);
 	}
 }

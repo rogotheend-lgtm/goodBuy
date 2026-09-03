@@ -1,6 +1,7 @@
 package com.goodbuy.backend.analysis.service;
 
 import com.goodbuy.backend.analysis.api.AnalysisResponse;
+import com.goodbuy.backend.analysis.api.DominantCategoryResponse;
 import com.goodbuy.backend.analysis.api.TransactionResponse;
 import com.goodbuy.backend.analysis.domain.AnalysisSummary;
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
@@ -28,6 +29,7 @@ public class AnalysisApplicationService {
 	private final OcrResponseValidator ocrResponseValidator;
 	private final TransactionClassifier transactionClassifier;
 	private final AnalysisSummaryCalculator summaryCalculator;
+	private final DominantCategoryCalculator dominantCategoryCalculator;
 	private final CategoryCatalogService categoryCatalogService;
 
 	public AnalysisApplicationService(
@@ -35,11 +37,13 @@ public class AnalysisApplicationService {
 			OcrResponseValidator ocrResponseValidator,
 			TransactionClassifier transactionClassifier,
 			AnalysisSummaryCalculator summaryCalculator,
+			DominantCategoryCalculator dominantCategoryCalculator,
 			CategoryCatalogService categoryCatalogService) {
 		this.ocrPort = ocrPort;
 		this.ocrResponseValidator = ocrResponseValidator;
 		this.transactionClassifier = transactionClassifier;
 		this.summaryCalculator = summaryCalculator;
+		this.dominantCategoryCalculator = dominantCategoryCalculator;
 		this.categoryCatalogService = categoryCatalogService;
 	}
 
@@ -72,9 +76,11 @@ public class AnalysisApplicationService {
 
 		// 2. OCR이 끝나면 DB에서 카테고리 맵을 한 번 조회하고 Spring이 직접 분류합니다.
 		long categoryStartedAt = System.nanoTime();
-		var categoryMappings = categoryCatalogService.loadMappings();
+		var categoryCatalog = categoryCatalogService.loadCatalog();
+		var categoryMappings = categoryCatalog.mappings();
 		log.info(
-				"Category catalog loaded: mappingCount={}, durationMs={}",
+				"Category catalog loaded: source={}, mappingCount={}, durationMs={}",
+				categoryCatalog.source(),
 				categoryMappings.size(),
 				elapsedMillis(categoryStartedAt));
 		List<ClassifiedTransaction> classifiedTransactions = parsedTransactions.stream()
@@ -86,13 +92,20 @@ public class AnalysisApplicationService {
 				.map(TransactionResponse::from)
 				.toList();
 		AnalysisSummary summary = summaryCalculator.calculate(classifiedTransactions);
+		var dominantCategory = dominantCategoryCalculator
+				.calculate(classifiedTransactions, summary.expenseAmount())
+				.orElse(null);
 
 		log.info(
 				"Expense analysis completed: imageCount={}, transactionCount={}, durationMs={}",
 				requests.size(),
 				transactions.size(),
 				elapsedMillis(analysisStartedAt));
-		return new AnalysisResponse(transactions, summary);
+		return new AnalysisResponse(
+				transactions,
+				summary,
+				categoryCatalog.source(),
+				DominantCategoryResponse.from(dominantCategory));
 	}
 
 	private long elapsedMillis(long startedAt) {

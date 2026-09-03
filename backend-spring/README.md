@@ -25,10 +25,11 @@ cd /Users/lim/goodBuy
 1. FE가 같은 `images` 필드로 이미지 1~5장과 `ownerName`을 multipart 요청으로 전송합니다.
 2. Spring이 각 이미지의 형식과 크기를 검사합니다.
 3. Spring이 Python OCR에 이미지를 한 장씩 순서대로 전달하고, 각 응답 스키마와 합계를 검증합니다.
-4. OCR이 모두 끝나면 Spring이 Supabase의 `categories`와 `category_rules`를 한 번의 읽기 전용 JOIN 쿼리로 조회합니다.
-5. Spring이 가장 긴 키워드 우선으로 카테고리를 분류하고, 이상치와 최종 합계를 계산합니다.
-6. 최종 분류 결과를 PostgreSQL에 저장하지 않습니다.
-7. 같은 요청의 응답으로 반환한 뒤 서버에 분석 기록을 남기지 않습니다.
+4. OCR이 모두 끝나면 Spring이 Supabase의 `categories`와 `category_rules`를 한 번의 읽기 전용 JOIN 쿼리로 조회합니다. DB를 사용할 수 없으면 즉시 내장 기본 카탈로그로 대체합니다.
+5. Spring이 가장 긴 키워드 우선으로 카테고리를 분류하고, DB의 `dutch_threshold`로 이상치를 감지합니다.
+6. 확정 소비를 카테고리별로 합산해 가장 큰 비중의 카테고리와 DB의 GIF URL을 `dominantCategory`로 반환합니다.
+7. 최종 분류 결과를 PostgreSQL에 저장하지 않습니다.
+8. 같은 요청의 응답으로 반환한 뒤 서버에 분석 기록을 남기지 않습니다.
 
 사용자 정보, 이미지, 분석 결과와 세션을 저장하지 않으며 분석 ID도 만들지 않습니다. 별도 조회나 수정 API도 없습니다. Supabase의 `categories`, `category_rules`는 서비스 공통 기준 정보로만 읽습니다.
 
@@ -40,11 +41,11 @@ cd /Users/lim/goodBuy
 - 사용 목적(`purposeCategory`)과 가맹점 형태(`merchantType`)를 분리합니다.
 - 이상치는 사용자에게 재입력을 요청하지 않으며 `anomalyDetail`을 통해 탐지 근거만 안내합니다.
 
-현재 목적 카테고리는 `FOOD`, `TRANSPORT`, `LIVING`, `SHOPPING`, `CULTURE_HOBBY`, `HEALTH`, `EDUCATION`, `FIXED_SUBSCRIPTION`, `OTHER`입니다. 키워드와 기준 금액은 Supabase 기준 데이터를 사용하며, DB 함수는 호출하지 않습니다.
+현재 목적 카테고리는 `FOOD`, `TRANSPORT`, `LIVING`, `SHOPPING`, `CULTURE_HOBBY`, `HEALTH`, `EDUCATION`, `FIXED_SUBSCRIPTION`, `OTHER`입니다. 정상 상황에서는 키워드·기준 금액·GIF URL 모두 Supabase 값을 사용하며 DB 함수는 호출하지 않습니다. DB 연결 실패·빈 카탈로그·알 수 없는 카테고리 값이 발생하면 동일한 9개 카테고리의 간단한 내장 기본값으로 분석을 완료하고 응답의 `categoryCatalogSource`를 `FALLBACK`으로 표시합니다.
 
 ## 로컬 실행
 
-Java 21과 PostgreSQL이 필요합니다. 기본 DB는 `localhost:5432/goodbuy`, 사용자와 비밀번호는 모두 `goodbuy`입니다.
+Java 21이 필요합니다. PostgreSQL에 연결할 수 있으면 DB 카테고리를 사용하고, 연결할 수 없으면 내장 기본값으로 동작합니다.
 
 ```bash
 cd /Users/lim/goodBuy/backend-spring
@@ -73,6 +74,7 @@ OCR_PARSE_PATH=/ocr/extraction \
 | `DB_URL` | `jdbc:postgresql://localhost:5432/goodbuy` | PostgreSQL JDBC URL |
 | `DB_USERNAME` | `goodbuy` | DB 사용자 |
 | `DB_PASSWORD` | `goodbuy` | DB 비밀번호 |
+| `DB_CONNECTION_TIMEOUT` | `1500` | DB 장애 시 기본 카탈로그로 전환하기 전 연결 대기 시간(ms) |
 | `OCR_MODE` | `mock` | `mock` 또는 `python` |
 | `OCR_BASE_URL` | `http://localhost:8000` | Python 서버 주소 |
 | `OCR_READ_TIMEOUT` | `120s` | 실제 OCR 응답 대기 시간 |
@@ -107,6 +109,8 @@ const analysis = await response.json();
 
 이상 거래는 각 거래의 `anomaly`, `anomalyReason`, `anomalyDetail` 필드로 출력됩니다. 별도의 수정 요청 API는 제공하지 않습니다.
 
+응답의 `categoryCatalogSource`는 `DATABASE` 또는 `FALLBACK`이며, `dominantCategory`에는 최대 비중 카테고리의 `purposeCategory`, `amount`, `ratioPercent`, `gifUrl`이 들어갑니다. 확정 소비가 없으면 `dominantCategory`는 `null`입니다.
+
 ## Python OCR 계약
 
 Spring은 Python의 다음 내부 API를 이미지마다 한 번씩 순차 호출합니다. Python API의 단일 이미지 계약은 그대로 유지됩니다.
@@ -122,7 +126,7 @@ file: 업로드 이미지
 
 ## 테스트
 
-Docker가 실행 중인 환경에서 다음 명령으로 임시 PostgreSQL, OCR 계약, 분류 규칙, 요청 무기록과 이상치 상세 응답을 테스트합니다.
+다음 명령으로 OCR 계약, 분류 규칙, DB 장애 fallback과 응답을 테스트합니다. Docker가 없으면 PostgreSQL 전용 테스트만 자동으로 건너뜁니다.
 
 ```bash
 ./gradlew clean test

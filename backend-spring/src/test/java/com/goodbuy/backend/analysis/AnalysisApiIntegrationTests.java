@@ -148,6 +148,13 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 		assertNull(response.get("analysisId"));
 		assertEquals(56_430, response.get("summary").get("expenseAmount").longValue());
 		assertEquals(2, response.get("summary").get("anomalyCount").intValue());
+		assertEquals("DATABASE", response.get("categoryCatalogSource").stringValue());
+		assertEquals("FOOD", response.get("dominantCategory").get("purposeCategory").stringValue());
+		assertEquals(30_000, response.get("dominantCategory").get("amount").longValue());
+		assertEquals(53, response.get("dominantCategory").get("ratioPercent").intValue());
+		assertEquals(
+				"https://example.com/FOOD.gif",
+				response.get("dominantCategory").get("gifUrl").stringValue());
 		assertEquals("ANOMALY", response.get("transactions").get(6).get("transactionType").stringValue());
 		assertTrue(response.get("transactions").get(6).get("anomalyDetail").stringValue().contains("이상치"));
 		assertEquals(analysisCountBefore, countRows("analysis"));
@@ -164,18 +171,28 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void returnsServiceUnavailableInsteadOfHangingWhenCategoryMapIsEmpty() throws Exception {
+	void usesGifAndDutchThresholdQueriedFromDatabase() throws Exception {
+		jdbcTemplate.update(
+				"UPDATE categories SET dutch_threshold = 10000, gif_url = 'https://example.com/db-food.gif' WHERE category_name = 'FOOD'");
+
+		JsonNode response = objectMapper.readTree(createAnalysis().getResponse().getContentAsByteArray());
+
+		assertEquals("DATABASE", response.get("categoryCatalogSource").stringValue());
+		assertEquals("https://example.com/db-food.gif", response.get("dominantCategory").get("gifUrl").stringValue());
+		assertEquals("GROUP_PAYMENT_CANDIDATE", response.get("transactions").get(2).get("anomalyReason").stringValue());
+		assertTrue(response.get("transactions").get(2).get("anomalyDetail").stringValue().contains("10000원"));
+	}
+
+	@Test
+	void usesFallbackCatalogWhenCategoryMapIsEmpty() throws Exception {
 		jdbcTemplate.update("DELETE FROM category_rules");
 		jdbcTemplate.update("DELETE FROM categories");
-		MockMultipartFile image = new MockMultipartFile(
-				"images", "transactions.png", MediaType.IMAGE_PNG_VALUE, PNG_CONTENT);
-		MockMultipartFile ownerName = new MockMultipartFile(
-				"ownerName", "", MediaType.TEXT_PLAIN_VALUE, "김세빈".getBytes(StandardCharsets.UTF_8));
 
-		mockMvc.perform(multipart("/api/v1/analyses").file(image).file(ownerName))
-				.andExpect(status().isServiceUnavailable())
-				.andExpect(jsonPath("$.code").value("CATEGORY_CATALOG_UNAVAILABLE"))
-				.andExpect(jsonPath("$.detail").value("카테고리 기준 정보를 불러오지 못했습니다. 잠시 후 다시 분석해주세요."));
+		JsonNode response = objectMapper.readTree(createAnalysis().getResponse().getContentAsByteArray());
+
+		assertEquals("FALLBACK", response.get("categoryCatalogSource").stringValue());
+		assertEquals("FOOD", response.get("dominantCategory").get("purposeCategory").stringValue());
+		assertTrue(response.get("dominantCategory").get("gifUrl").stringValue().endsWith("/FOOD.gif"));
 	}
 
 	@Test

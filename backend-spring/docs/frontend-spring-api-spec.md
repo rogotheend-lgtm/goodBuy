@@ -84,7 +84,9 @@ Content-Type: application/json
     "otherPersonAmount": 0,
     "anomalyCount": 1,
     "anomalyAmount": 630
-  }
+  },
+  "categoryCatalogSource": "DATABASE",
+  "dominantCategory": null
 }
 ```
 
@@ -114,6 +116,17 @@ Content-Type: application/json
 | `otherPersonAmount` | Long | O | 다른 사람 거래로 분류된 금액 합계 |
 | `anomalyCount` | Integer | O | 이상치 건수 |
 | `anomalyAmount` | Long | O | 이상치 원본 금액 합계 |
+
+### 3.5 카테고리 결과 필드
+
+| 필드명 | 타입 | 필수 | 설명 |
+| --- | --- | --- | --- |
+| `categoryCatalogSource` | Enum String | O | `DATABASE`: DB 기준 사용, `FALLBACK`: 내장 기본값 사용 |
+| `dominantCategory` | Object 또는 null | O | 확정 소비가 없으면 `null` |
+| `dominantCategory.purposeCategory` | Enum String | 조건부 | 최대 비중 소비 카테고리 |
+| `dominantCategory.amount` | Long | 조건부 | 해당 카테고리의 확정 소비 합계 |
+| `dominantCategory.ratioPercent` | Integer | 조건부 | 전체 확정 소비 중 비율을 반올림한 값 |
+| `dominantCategory.gifUrl` | String | 조건부 | DB 또는 기본 카탈로그의 카테고리 GIF URL |
 
 ## 4. Enum 값
 
@@ -173,11 +186,13 @@ Content-Type: application/json
 | `400 Bad Request` | `INVALID_REQUEST` | 이름 누락·길이 오류, 이미지 누락·개수·형식·시그니처 오류 |
 | `413 Content Too Large` | `IMAGE_TOO_LARGE` | 이미지 한 장 10MB 또는 요청 전체 50MB 초과 |
 | `502 Bad Gateway` | `OCR_SERVICE_ERROR` | Spring이 Python OCR을 호출하지 못했거나 OCR 응답 검증 실패 |
-| `503 Service Unavailable` | `CATEGORY_CATALOG_UNAVAILABLE` | DB 카테고리 기준 조회 실패 |
+
+DB 카테고리 조회 실패는 오류 응답을 만들지 않습니다. 내장 기본값으로 분석을 완료하고 `categoryCatalogSource: "FALLBACK"`을 반환합니다.
 
 ## 6. Frontend 처리 기준
 
-- 성공 시 `transactions`와 `summary`를 메모리에 보관하고 `/result`로 이동한다.
+- 성공 시 분석 응답을 메모리에 보관하고 `/result`로 이동한다.
+- 결과 화면의 대표 GIF는 `dominantCategory.gifUrl`을 사용하고, URL 로드 실패 시 로컬 기본 GIF로 대체한다.
 - 현재 서비스는 로그인, 쿠키, 사용자 ID, 분석 ID를 사용하지 않는다.
 - 분석 결과 조회용 GET API와 수정용 PATCH API는 현재 제공하지 않는다.
 - 프론트의 `ANALYSIS_TIMEOUT`은 Spring 오류 응답이 아니라 브라우저가 요청을 중단하면서 만드는 클라이언트 오류다.

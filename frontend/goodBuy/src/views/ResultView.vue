@@ -4,6 +4,8 @@ import { useAnalysisStore } from '@/stores/analysis'
 
 const { analysis, ownerName, clearResult } = useAnalysisStore()
 const gifAvailable = ref(true)
+const failedGifUrl = ref('')
+const LOCAL_GIF_FALLBACK = '/giphy.gif'
 
 const categoryLabels = {
   FOOD: '식비',
@@ -33,34 +35,65 @@ const categorySummaries = computed(() => {
   )
 })
 
+// 신규 응답은 Spring이 DB 기준으로 계산한 dominantCategory를 사용합니다.
+// 이전 mock/응답도 화면이 깨지지 않도록 프론트 계산값을 보조값으로 유지합니다.
+const topCategory = computed(() => {
+  const dominant = analysis.value?.dominantCategory
+  if (dominant) {
+    return {
+      category: dominant.purposeCategory,
+      amount: dominant.amount,
+      ratioPercent: dominant.ratioPercent,
+      gifUrl: dominant.gifUrl,
+    }
+  }
+  return categorySummaries.value[0] || null
+})
+
+const trendGifUrl = computed(() => {
+  const databaseGifUrl = topCategory.value?.gifUrl
+  if (!databaseGifUrl || databaseGifUrl === failedGifUrl.value) {
+    return LOCAL_GIF_FALLBACK
+  }
+  return databaseGifUrl
+})
+
 const reportSummary = computed(() => {
   if (!analysis.value) return ''
 
   const summary = analysis.value.summary
-  const topCategory = categorySummaries.value[0]
+  const leadingCategory = topCategory.value
   const anomalyText = summary.anomalyCount
     ? `결제·송금 구분이 필요한 이상치 ${summary.anomalyCount}건(${formatWon(summary.anomalyAmount)})도 함께 표시했어요.`
     : '별도로 확인할 이상치는 없어요.'
 
-  if (!topCategory) {
+  if (!leadingCategory) {
     return `이번 분석에서 확정된 소비가 아직 없어요. ${anomalyText}`
   }
 
-  const categoryName = categoryLabels[topCategory.category] || topCategory.category
-  const ratio = summary.expenseAmount
-    ? Math.round((topCategory.amount / summary.expenseAmount) * 100)
-    : 0
+  const categoryName = categoryLabels[leadingCategory.category] || leadingCategory.category
+  const ratio =
+    leadingCategory.ratioPercent ??
+    (summary.expenseAmount ? Math.round((leadingCategory.amount / summary.expenseAmount) * 100) : 0)
 
-  return `이번 달 확정 소비 금액은 ${formatWon(summary.expenseAmount)}이에요. 그중 ${categoryName}가 ${formatWon(topCategory.amount)}(${ratio}%)로 가장 큰 비중을 차지했고, ${anomalyText}`
+  return `이번 달 확정 소비 금액은 ${formatWon(summary.expenseAmount)}이에요. 그중 ${categoryName}가 ${formatWon(leadingCategory.amount)}(${ratio}%)로 가장 큰 비중을 차지했고, ${anomalyText}`
 })
 
 const trendCaption = computed(() => {
-  const topCategory = categorySummaries.value[0]
-  if (!topCategory) return '소비 트렌드를 확인해보세요!'
+  const leadingCategory = topCategory.value
+  if (!leadingCategory) return '소비 트렌드를 확인해보세요!'
 
-  const categoryName = categoryLabels[topCategory.category] || topCategory.category
+  const categoryName = categoryLabels[leadingCategory.category] || leadingCategory.category
   return `${categoryName} 지출이 이번 달 1위예요!`
 })
+
+function handleGifError() {
+  if (trendGifUrl.value !== LOCAL_GIF_FALLBACK) {
+    failedGifUrl.value = trendGifUrl.value
+    return
+  }
+  gifAvailable.value = false
+}
 
 function formatWon(amount) {
   return `${Number(amount || 0).toLocaleString('ko-KR')}원`
@@ -117,9 +150,9 @@ function formatWon(amount) {
             <div class="gif-panel">
               <img
                 v-if="gifAvailable"
-                src="/giphy.gif"
-                alt="수박을 발견한 커비 애니메이션"
-                @error="gifAvailable = false"
+                :src="trendGifUrl"
+                :alt="`${trendCaption} 카테고리 애니메이션`"
+                @error="handleGifError"
               />
               <div v-else class="gif-fallback" aria-label="소비 분석 반응 이미지">💸</div>
               <strong>{{ trendCaption }}</strong>
@@ -142,10 +175,10 @@ function formatWon(amount) {
             <div class="bubble ai">
               안녕하세요! 이번 달 소비 내역에 대해 궁금한 점을 물어보세요.
             </div>
-            <div class="bubble user">이번 달 옷 쇼핑에 얼마 썼어?</div>
+            <!-- <div class="bubble user">이번 달 옷 쇼핑에 얼마 썼어?</div>
             <div class="bubble ai">이번 달 쇼핑 카테고리에는 총 78,000원을 썼어요.</div>
             <div class="bubble user">그럼 식비는 얼마나 썼어?</div>
-            <div class="bubble ai">식비는 218,000원으로 이번 달 지출 중 가장 큰 비중을 차지했어요.</div>
+            <div class="bubble ai">식비는 218,000원으로 이번 달 지출 중 가장 큰 비중을 차지했어요.</div> -->
           </div>
 
           <div class="chat-input-row">
@@ -364,8 +397,8 @@ h1 {
 
 .gif-panel img,
 .gif-fallback {
-  width: 110px;
-  height: 82px;
+  width: 330px;
+  height: 246px;
   border-radius: 8px;
 }
 

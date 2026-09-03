@@ -61,19 +61,44 @@ export async function createMockAnalysis({ images }) {
     (transaction) => transaction.transactionType === 'EXPENSE',
   )
   const anomalyTransactions = transactions.filter((transaction) => transaction.anomaly)
+  const expenseAmount = sum(expenseTransactions, 'personalAmount')
+  const dominantCategory = findDominantCategory(expenseTransactions, expenseAmount)
 
   return {
     transactions,
+    categoryCatalogSource: 'MOCK',
+    dominantCategory,
     summary: {
       parsedCount: transactions.length,
       parsedAmount: sum(transactions, 'originalAmount'),
       expenseCount: expenseTransactions.length,
-      expenseAmount: sum(expenseTransactions, 'personalAmount'),
+      expenseAmount,
       selfTransferAmount: 0,
       otherPersonAmount: 0,
       anomalyCount: anomalyTransactions.length,
       anomalyAmount: sum(anomalyTransactions, 'originalAmount'),
     },
+  }
+}
+
+function findDominantCategory(transactions, expenseAmount) {
+  const totals = new Map()
+  transactions.forEach((transaction) => {
+    totals.set(
+      transaction.purposeCategory,
+      (totals.get(transaction.purposeCategory) || 0) + transaction.personalAmount,
+    )
+  })
+  const [purposeCategory, amount] = Array.from(totals.entries()).sort(
+    (left, right) => right[1] - left[1],
+  )[0] || [null, 0]
+
+  if (!purposeCategory) return null
+  return {
+    purposeCategory,
+    amount,
+    ratioPercent: expenseAmount ? Math.round((amount / expenseAmount) * 100) : 0,
+    gifUrl: '/giphy.gif',
   }
 }
 

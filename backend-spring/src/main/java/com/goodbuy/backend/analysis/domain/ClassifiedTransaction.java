@@ -6,6 +6,7 @@ public record ClassifiedTransaction(
 		long personalAmount,
 		TransactionType transactionType,
 		PurposeCategory purposeCategory,
+		String categoryGifUrl,
 		MerchantType merchantType,
 		boolean anomaly,
 		AnomalyReason anomalyReason,
