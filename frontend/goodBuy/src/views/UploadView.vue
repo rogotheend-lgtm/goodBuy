@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { analysisMode, analyzeExpenses } from '@/api/analysis'
 import { useAnalysisStore } from '@/stores/analysis'
@@ -11,10 +11,15 @@ const name = ref('')
 const files = ref([])
 const status = ref('idle')
 const errorMessage = ref('')
+const progress = ref(0)
+const steps = ref([])
+const discoveredCategories = ref([])
+let progressTimer
 
 const MAX_FILE_COUNT = 5
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg'])
+const MOCK_CATEGORY_SEQUENCE = ['카페', '쇼핑', '생활', '식비', '기타']
 
 const normalizedNameLength = computed(() => name.value.replace(/\s/g, '').length)
 const nameIsValid = computed(
@@ -61,25 +66,77 @@ async function startAnalysis() {
 
   status.value = 'analyzing'
   errorMessage.value = ''
+  startProgress()
 
   try {
     const result = await analyzeExpenses({
       ownerName: name.value.trim(),
       images: files.value,
     })
+    finishProgress()
     saveResult(result, name.value.trim(), analysisMode)
     await router.push({ name: 'result' })
   } catch (error) {
+    stopProgress()
     status.value = 'error'
     errorMessage.value = error instanceof Error ? error.message : '분석 중 오류가 발생했습니다.'
   }
 }
+
+function startProgress() {
+  progress.value = Math.max(12, Math.round(45 / files.value.length))
+  discoveredCategories.value = analysisMode === 'mock' ? [MOCK_CATEGORY_SEQUENCE[0]] : []
+  steps.value = files.value.map((_, index) => ({
+    label: `캡처 ${index + 1} 분석`,
+    state: index === 0 ? 'analyzing' : 'pending',
+  }))
+
+  const startedAt = window.performance.now()
+  const estimatedStepMilliseconds = 3500
+  const estimatedTotalMilliseconds = Math.max(5000, files.value.length * estimatedStepMilliseconds)
+
+  progressTimer = window.setInterval(() => {
+    const elapsed = window.performance.now() - startedAt
+    const currentIndex = Math.min(
+      steps.value.length - 1,
+      Math.floor(elapsed / estimatedStepMilliseconds),
+    )
+
+    steps.value.forEach((step, index) => {
+      step.state = index < currentIndex ? 'done' : index === currentIndex ? 'analyzing' : 'pending'
+    })
+
+    if (analysisMode === 'mock') {
+      discoveredCategories.value = MOCK_CATEGORY_SEQUENCE.slice(0, currentIndex + 1)
+    }
+
+    const elapsedRatio = Math.min(1, elapsed / estimatedTotalMilliseconds)
+    progress.value = Math.min(92, Math.round(12 + elapsedRatio * 80))
+  }, 250)
+}
+
+function finishProgress() {
+  stopProgress()
+  steps.value.forEach((step) => {
+    step.state = 'done'
+  })
+  progress.value = 100
+}
+
+function stopProgress() {
+  if (progressTimer) {
+    window.clearInterval(progressTimer)
+    progressTimer = undefined
+  }
+}
+
+onBeforeUnmount(stopProgress)
 </script>
 
 <template>
   <div class="hero">
     <div class="hero-inner">
-      <div class="eyebrow">AI 소비 분석</div>
+      <div v-if="status !== 'analyzing'" class="eyebrow">AI 소비 분석</div>
 
       <template v-if="status !== 'analyzing'">
         <h1>이번 달 소비내역, 확인해볼까요?</h1>
@@ -87,12 +144,18 @@ async function startAnalysis() {
         <ul class="checklist">
           <li>캡처 이미지만 올리면 자동으로 항목을 분류해요</li>
           <li>실제 소비와 확인이 필요한 이상치를 나누어 보여줘요</li>
-          <li>현재 화면 개발 단계에서는 예시 분석 결과를 사용해요</li>
+          <li v-if="analysisMode === 'mock'">현재 화면 개발 단계에서는 예시 분석 결과를 사용해요</li>
+          <li v-else>Spring·Python OCR과 DB 카테고리 기준으로 실제 분석해요</li>
         </ul>
       </template>
       <template v-else>
-        <h1>업로드한 내용을 분석하고 있어요</h1>
-        <p class="sub">{{ files.length }}장의 이미지를 처리하고 있습니다. 잠시만 기다려주세요.</p>
+        <div class="analyzing-title">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <div>
+            <div class="eyebrow">AI 소비 분석</div>
+            <h1>업로드한 내용을 분석하고 있어요</h1>
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -140,17 +203,57 @@ async function startAnalysis() {
       </template>
 
       <template v-else>
-        <section class="card">
-          <div class="loading-row">
-            <span class="spinner" aria-hidden="true"></span>
-            <div>
-              <div class="label">소비내역 분석 중</div>
-              <div class="hint">완료되면 최종 결과 화면으로 이동합니다.</div>
+        <section class="card progress-card">
+          <div class="progress-header">
+            <span class="label">분석 진행 상황</span>
+            <span class="progress-badge">
+              {{ analysisMode === 'mock' ? '예시 분석 중' : '실시간 분석 중' }}
+            </span>
+          </div>
+          <div
+            class="progress-track"
+            role="progressbar"
+            aria-label="분석 진행률"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            :aria-valuenow="progress"
+          >
+            <div
+              class="progress-fill"
+              :style="{ width: `${progress}%` }"
+            ></div>
+          </div>
+
+          <div class="step-list">
+            <div v-for="step in steps" :key="step.label" class="step-row">
+              <span class="step-name">
+                <span v-if="step.state === 'done'" class="step-icon done">✓</span>
+                <span v-else-if="step.state === 'analyzing'" class="step-icon spinner"></span>
+                <span v-else class="step-icon pending"></span>
+                {{ step.label }}
+              </span>
+              <span v-if="step.state === 'done'" class="step-status done">완료</span>
+              <span v-else-if="step.state === 'analyzing'" class="step-status analyzing">•••</span>
+              <span v-else class="step-status waiting">대기 중</span>
+            </div>
+          </div>
+
+          <div v-if="discoveredCategories.length" class="category-progress">
+            <div class="category-progress-label">지금까지 발견된 소비 카테고리</div>
+            <div class="category-chips">
+              <span v-for="category in discoveredCategories" :key="category" class="category-chip">
+                {{ category }}
+              </span>
+              <span class="category-chip pending-chip">분석 중</span>
             </div>
           </div>
         </section>
 
-        <button class="cta" disabled>분석 중...</button>
+        <div class="analysis-tip">💡 잠깐, 어떤 소비 습관이 보일지 확인하고 있어요.</div>
+        <button class="cta loading-button" disabled>
+          <span class="button-spinner" aria-hidden="true"></span>
+          분석 중...
+        </button>
       </template>
     </div>
   </main>
@@ -188,11 +291,34 @@ h1 { font-size: 28px; color: #111827; margin: 0 0 8px; }
   background: #2f5cff; color: #fff; font-weight: 700; cursor: pointer;
 }
 .cta:disabled { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
-.loading-row { display: flex; align-items: center; gap: 16px; }
-.loading-row .hint { margin-bottom: 0; }
-.spinner { width: 28px; height: 28px; border: 3px solid #dbe3ff; border-top-color: #2f5cff; border-radius: 50%; animation: spin .8s linear infinite; }
+.analyzing-title { display: flex; align-items: center; gap: 16px; }
+.analyzing-title .eyebrow { margin-bottom: 5px; }
+.search-icon { display: grid; place-items: center; width: 54px; height: 54px; flex: 0 0 54px; border: 3px solid #e0e7ff; border-radius: 50%; color: #2f5cff; font-size: 29px; font-weight: 700; }
+.progress-card { padding: 26px; }
+.progress-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.progress-badge { padding: 5px 10px; border-radius: 20px; background: #eef2ff; color: #2f5cff; font-size: 10px; font-weight: 800; }
+.progress-track { height: 8px; margin: 18px 0 10px; overflow: hidden; border-radius: 999px; background: #eef0f3; }
+.progress-fill { height: 100%; border-radius: inherit; background: #4876ff; transition: width .45s ease; }
+.step-list { display: flex; flex-direction: column; }
+.step-row { display: flex; align-items: center; justify-content: space-between; min-height: 48px; border-bottom: 1px solid #f0f1f3; font-size: 13px; }
+.step-row:last-child { border-bottom: 0; }
+.step-name { display: flex; align-items: center; gap: 10px; color: #374151; }
+.step-icon { display: inline-grid; place-items: center; width: 16px; height: 16px; }
+.step-icon.done { color: #2f5cff; font-weight: 900; }
+.step-icon.pending { width: 8px; height: 8px; margin: 4px; border-radius: 50%; background: #d1d5db; }
+.step-icon.spinner { border: 2px solid #dbe3ff; border-top-color: #2f5cff; border-radius: 50%; animation: spin .8s linear infinite; }
+.step-status { font-size: 11px; font-weight: 700; }
+.step-status.done, .step-status.analyzing { color: #2f5cff; }
+.step-status.waiting { color: #9ca3af; }
+.category-progress { margin-top: 12px; padding-top: 16px; border-top: 1px solid #f0f1f3; }
+.category-progress-label { margin-bottom: 10px; color: #9ca3af; font-size: 11px; }
+.category-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.category-chip { padding: 6px 10px; border-radius: 999px; background: #eef2ff; color: #2f5cff; font-size: 11px; font-weight: 700; }
+.category-chip.pending-chip { background: #f3f4f6; color: #9ca3af; }
+.analysis-tip { padding: 14px 17px; border-radius: 10px; background: #eef2ff; color: #4b5563; font-size: 12px; }
+.loading-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; }
+.button-spinner { width: 14px; height: 14px; border: 2px solid #c9cdd5; border-top-color: #7c8491; border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
 @media (max-width: 680px) {
   .hero-inner, .body-inner { width: 100%; }
   .input, .cta { width: 100%; }

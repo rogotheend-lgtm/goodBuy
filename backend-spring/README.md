@@ -1,27 +1,46 @@
 # goodBuy Spring Backend
 
-소비 내역 이미지를 한 번 요청받아 Python OCR 결과를 검증하고, 소비/이체/이상 항목으로 분류한 결과를 PostgreSQL에 저장하면서 프론트엔드에 바로 반환하는 Spring Boot API입니다.
+소비 내역 이미지를 한 번 요청받아 Python OCR 결과를 검증하고, 소비/이체/이상 항목으로 분류한 결과를 저장하지 않고 프론트엔드에 바로 반환하는 Spring Boot API입니다.
+
+## 전체 서비스 한 번에 실행
+
+프로젝트 루트에서 Python OCR, Spring Backend, Vue Frontend를 함께 실행하거나 종료합니다.
+
+```bash
+cd /Users/lim/goodBuy
+./goodbuy.sh start   # 전체 실행
+./goodbuy.sh stop    # 전체 종료
+```
+
+필요하면 다음 명령도 사용할 수 있습니다.
+
+```bash
+./goodbuy.sh restart # 전체 재시작
+./goodbuy.sh status  # 실행 상태 확인
+./goodbuy.sh logs    # 세 서비스 로그 실시간 확인 (종료: Ctrl+C)
+```
 
 ## 처리 흐름
 
 1. FE가 같은 `images` 필드로 이미지 1~5장과 `ownerName`을 multipart 요청으로 전송합니다.
 2. Spring이 각 이미지의 형식과 크기를 검사합니다.
 3. Spring이 Python OCR에 이미지를 한 장씩 순서대로 전달하고, 각 응답 스키마와 합계를 검증합니다.
-4. 거래를 분류하고 Spring이 신뢰 가능한 최종 합계를 다시 계산합니다.
-5. 최종 분류 결과를 내부 UUID로 PostgreSQL에 저장합니다.
-6. 같은 결과를 거래 목록, 합계, 이상치 상세 설명으로 프론트엔드에 바로 반환합니다.
+4. OCR이 모두 끝나면 Spring이 Supabase의 `categories`와 `category_rules`를 한 번의 읽기 전용 JOIN 쿼리로 조회합니다.
+5. Spring이 가장 긴 키워드 우선으로 카테고리를 분류하고, 이상치와 최종 합계를 계산합니다.
+6. 최종 분류 결과를 PostgreSQL에 저장하지 않습니다.
+7. 같은 요청의 응답으로 반환한 뒤 서버에 분석 기록을 남기지 않습니다.
 
-사용자 정보와 세션은 저장하지 않고, 내부 분석 ID도 응답에 노출하지 않습니다. 별도 조회나 수정 API도 없습니다.
+사용자 정보, 이미지, 분석 결과와 세션을 저장하지 않으며 분석 ID도 만들지 않습니다. 별도 조회나 수정 API도 없습니다. Supabase의 `categories`, `category_rules`는 서비스 공통 기준 정보로만 읽습니다.
 
 ## 핵심 분류 규칙
 
 - 입력한 이름과 거래 대상이 공백/대소문자/유니코드 정규화 후 정확히 같으면 `SELF_TRANSFER` 이상치로 표시하고 소비 합계에서 제외합니다.
 - `토스페이`, `카카오페이`, `네이버페이`처럼 결제인지 송금인지 확정할 수 없는 항목은 `ANOMALY`로 표시하고 이유를 출력합니다.
-- 카페·패스트푸드·일반 식당·고깃집별 1인 기준 금액의 3배 이상인 단일 거래는 `GROUP_PAYMENT_CANDIDATE` 이상치로 표시하고 기준 금액을 출력합니다.
+- 거래 금액이 DB 카테고리의 `dutch_threshold`를 초과하면 `GROUP_PAYMENT_CANDIDATE`로 표시하되 소비 합계에는 포함합니다.
 - 사용 목적(`purposeCategory`)과 가맹점 형태(`merchantType`)를 분리합니다.
 - 이상치는 사용자에게 재입력을 요청하지 않으며 `anomalyDetail`을 통해 탐지 근거만 안내합니다.
 
-현재 목적 카테고리는 `FOOD`, `TRANSPORT`, `LIVING`, `SHOPPING`, `CULTURE_HOBBY`, `HEALTH`, `EDUCATION`, `FIXED_SUBSCRIPTION`, `OTHER`입니다. 팀 회의에서 이름이나 범위를 바꾸더라도 enum과 분류 규칙만 함께 변경하면 됩니다.
+현재 목적 카테고리는 `FOOD`, `TRANSPORT`, `LIVING`, `SHOPPING`, `CULTURE_HOBBY`, `HEALTH`, `EDUCATION`, `FIXED_SUBSCRIPTION`, `OTHER`입니다. 키워드와 기준 금액은 Supabase 기준 데이터를 사용하며, DB 함수는 호출하지 않습니다.
 
 ## 로컬 실행
 
@@ -103,7 +122,7 @@ file: 업로드 이미지
 
 ## 테스트
 
-Docker가 실행 중인 환경에서 다음 명령으로 임시 PostgreSQL, OCR 계약, 분류 규칙, DB 저장과 이상치 상세 응답을 테스트합니다.
+Docker가 실행 중인 환경에서 다음 명령으로 임시 PostgreSQL, OCR 계약, 분류 규칙, 요청 무기록과 이상치 상세 응답을 테스트합니다.
 
 ```bash
 ./gradlew clean test

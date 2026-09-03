@@ -1,6 +1,7 @@
 package com.goodbuy.backend.analysis;
 
 import com.goodbuy.backend.PostgresIntegrationTest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,6 +42,44 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
+
+	@BeforeEach
+	void prepareCategoryMap() {
+		jdbcTemplate.execute("""
+				CREATE TABLE IF NOT EXISTS categories (
+				    category_id INTEGER PRIMARY KEY,
+				    category_name VARCHAR(30) NOT NULL UNIQUE,
+				    dutch_threshold INTEGER NOT NULL,
+				    gif_url VARCHAR(255) NOT NULL
+				)
+				""");
+		jdbcTemplate.execute("""
+				CREATE TABLE IF NOT EXISTS category_rules (
+				    rule_id INTEGER PRIMARY KEY,
+				    category_id INTEGER NOT NULL REFERENCES categories(category_id),
+				    keyword VARCHAR(50) NOT NULL UNIQUE
+				)
+				""");
+		jdbcTemplate.update("DELETE FROM category_rules");
+		jdbcTemplate.update("DELETE FROM categories");
+		jdbcTemplate.update("""
+				INSERT INTO categories(category_id, category_name, dutch_threshold, gif_url) VALUES
+				(1, 'FOOD', 30000, 'https://example.com/FOOD.gif'),
+				(2, 'LIVING', 50000, 'https://example.com/LIVING.gif'),
+				(3, 'SHOPPING', 100000, 'https://example.com/SHOPPING.gif'),
+				(9, 'OTHER', 100000, 'https://example.com/OTHER.gif')
+				""");
+		jdbcTemplate.update("""
+				INSERT INTO category_rules(rule_id, category_id, keyword) VALUES
+				(1, 2, '세븐일레븐'),
+				(2, 1, '버거앤타코'),
+				(3, 1, '커피'),
+				(4, 1, '맘스터치'),
+				(5, 1, '칼국수'),
+				(6, 2, '다이소'),
+				(7, 2, '마트')
+				""");
+	}
 
 	@Test
 	void servesBrowserApiTesterAtRoot() throws Exception {
@@ -100,7 +139,7 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 	}
 
 	@Test
-	void analyzesImageAndReturnsAnomalyDetailsWithoutUserInput() throws Exception {
+	void analyzesImageWithoutPersistingRequestData() throws Exception {
 		int analysisCountBefore = countRows("analysis");
 		int transactionCountBefore = countRows("expense_transaction");
 		MvcResult analysisResult = createAnalysis();
@@ -111,8 +150,32 @@ class AnalysisApiIntegrationTests extends PostgresIntegrationTest {
 		assertEquals(2, response.get("summary").get("anomalyCount").intValue());
 		assertEquals("ANOMALY", response.get("transactions").get(6).get("transactionType").stringValue());
 		assertTrue(response.get("transactions").get(6).get("anomalyDetail").stringValue().contains("이상치"));
-		assertEquals(analysisCountBefore + 1, countRows("analysis"));
-		assertEquals(transactionCountBefore + 10, countRows("expense_transaction"));
+		assertEquals(analysisCountBefore, countRows("analysis"));
+		assertEquals(transactionCountBefore, countRows("expense_transaction"));
+	}
+
+	@Test
+	void usesCategoryMappingQueriedFromDatabase() throws Exception {
+		jdbcTemplate.update("UPDATE category_rules SET category_id = 3 WHERE keyword = '다이소'");
+
+		JsonNode response = objectMapper.readTree(createAnalysis().getResponse().getContentAsByteArray());
+
+		assertEquals("SHOPPING", response.get("transactions").get(8).get("purposeCategory").stringValue());
+	}
+
+	@Test
+	void returnsServiceUnavailableInsteadOfHangingWhenCategoryMapIsEmpty() throws Exception {
+		jdbcTemplate.update("DELETE FROM category_rules");
+		jdbcTemplate.update("DELETE FROM categories");
+		MockMultipartFile image = new MockMultipartFile(
+				"images", "transactions.png", MediaType.IMAGE_PNG_VALUE, PNG_CONTENT);
+		MockMultipartFile ownerName = new MockMultipartFile(
+				"ownerName", "", MediaType.TEXT_PLAIN_VALUE, "김세빈".getBytes(StandardCharsets.UTF_8));
+
+		mockMvc.perform(multipart("/api/v1/analyses").file(image).file(ownerName))
+				.andExpect(status().isServiceUnavailable())
+				.andExpect(jsonPath("$.code").value("CATEGORY_CATALOG_UNAVAILABLE"))
+				.andExpect(jsonPath("$.detail").value("카테고리 기준 정보를 불러오지 못했습니다. 잠시 후 다시 분석해주세요."));
 	}
 
 	@Test

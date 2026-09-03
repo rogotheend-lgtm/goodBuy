@@ -12,7 +12,11 @@ class PaddleOCREngine:
 
     def __init__(self) -> None:
         self._ocr = PaddleOCR(
-            lang="korean",
+            # CPU 환경에서 기본 server 검출 모델은 한 장에 수십 초가 걸립니다.
+            # 모바일 검출 모델과 한국어 인식 모델 조합은 화면 캡처의 큰 글자를
+            # 훨씬 빠르게 읽으면서 필요한 거래명과 금액 인식률을 유지합니다.
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_recognition_model_name="korean_PP-OCRv5_mobile_rec",
 
             # 스크린샷/일반 이미지에서는
             # 문서 방향/warping은 일단 사용하지 않는다.

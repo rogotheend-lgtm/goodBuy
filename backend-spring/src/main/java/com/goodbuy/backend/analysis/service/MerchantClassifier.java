@@ -3,23 +3,14 @@ package com.goodbuy.backend.analysis.service;
 import com.goodbuy.backend.analysis.domain.MerchantClassification;
 import com.goodbuy.backend.analysis.domain.MerchantType;
 import com.goodbuy.backend.analysis.domain.PurposeCategory;
+import com.goodbuy.backend.catalog.CategoryMapping;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/** 거래 상대 이름의 키워드로 가맹점 형태와 소비 목적 카테고리를 찾습니다. */
+/** DB 카테고리 키워드로 목적 카테고리를 찾고 기존 응답용 가맹점 형태를 판별합니다. */
 @Component
 public class MerchantClassifier {
-
-	private static final List<MerchantRule> RULES = List.of(
-			new MerchantRule(List.of("토스페이", "카카오페이", "네이버페이"), MerchantType.PAYMENT_GATEWAY, PurposeCategory.OTHER),
-			new MerchantRule(List.of("삼겹", "갈비", "고기", "정육", "숯불"), MerchantType.MEAT_RESTAURANT, PurposeCategory.FOOD),
-			new MerchantRule(List.of("커피", "카페", "스타벅스", "투썸"), MerchantType.CAFE, PurposeCategory.FOOD),
-			new MerchantRule(List.of("맘스터치", "버거킹", "맥도날드", "롯데리아"), MerchantType.FAST_FOOD, PurposeCategory.FOOD),
-			new MerchantRule(List.of("세븐일레븐", "GS25", "이마트24"), MerchantType.CONVENIENCE_STORE, PurposeCategory.LIVING),
-			new MerchantRule(List.of("다이소"), MerchantType.HOUSEHOLD_STORE, PurposeCategory.LIVING),
-			new MerchantRule(List.of("마트"), MerchantType.MART, PurposeCategory.LIVING),
-			new MerchantRule(List.of("칼국수", "식당", "버거앤타코"), MerchantType.RESTAURANT, PurposeCategory.FOOD));
 
 	private final NameNormalizer normalizer;
 
@@ -27,20 +18,58 @@ public class MerchantClassifier {
 		this.normalizer = normalizer;
 	}
 
-	public MerchantClassification classify(String counterparty) {
+	public MerchantClassification classify(String counterparty, List<CategoryMapping> mappings) {
 		String normalizedCounterparty = normalizer.normalize(counterparty);
-
-		// 먼저 일치한 규칙을 사용하고, 알 수 없는 상호는 OTHER로 남깁니다.
-		return RULES.stream()
-				.filter(rule -> rule.keywords().stream().anyMatch(normalizedCounterparty::contains))
+		CategoryMapping category = mappings.stream()
+				.filter(mapping -> mapping.normalizedKeyword() != null && !mapping.normalizedKeyword().isBlank())
+				.filter(mapping -> normalizedCounterparty.contains(mapping.normalizedKeyword()))
 				.findFirst()
-				.map(rule -> new MerchantClassification(rule.merchantType(), rule.purposeCategory()))
-				.orElse(new MerchantClassification(MerchantType.OTHER, PurposeCategory.OTHER));
+				.orElseGet(() -> findOtherCategory(mappings));
+
+		return new MerchantClassification(
+				resolveMerchantType(normalizedCounterparty),
+				category.purposeCategory(),
+				category.dutchThreshold(),
+				category.gifUrl());
 	}
 
-	private record MerchantRule(
-			List<String> keywords,
-			MerchantType merchantType,
-			PurposeCategory purposeCategory) {
+	private CategoryMapping findOtherCategory(List<CategoryMapping> mappings) {
+		return mappings.stream()
+				.filter(mapping -> mapping.purposeCategory() == PurposeCategory.OTHER)
+				.findFirst()
+				.orElseThrow(() -> new IllegalStateException("Category map must contain the OTHER category"));
+	}
+
+	/** merchantType은 기존 응답 호환과 결제 플랫폼 판별에만 사용합니다. 카테고리는 DB가 결정합니다. */
+	private MerchantType resolveMerchantType(String counterparty) {
+		if (containsAny(counterparty, "토스페이", "카카오페이", "네이버페이")) {
+			return MerchantType.PAYMENT_GATEWAY;
+		}
+		if (containsAny(counterparty, "삼겹", "갈비", "고기", "정육", "숯불")) {
+			return MerchantType.MEAT_RESTAURANT;
+		}
+		if (containsAny(counterparty, "커피", "카페", "스타벅스", "투썸")) {
+			return MerchantType.CAFE;
+		}
+		if (containsAny(counterparty, "맘스터치", "버거킹", "맥도날드", "롯데리아")) {
+			return MerchantType.FAST_FOOD;
+		}
+		if (containsAny(counterparty, "세븐일레븐", "GS25", "이마트24")) {
+			return MerchantType.CONVENIENCE_STORE;
+		}
+		if (containsAny(counterparty, "다이소")) {
+			return MerchantType.HOUSEHOLD_STORE;
+		}
+		if (containsAny(counterparty, "마트")) {
+			return MerchantType.MART;
+		}
+		if (containsAny(counterparty, "칼국수", "식당", "버거앤타코")) {
+			return MerchantType.RESTAURANT;
+		}
+		return MerchantType.OTHER;
+	}
+
+	private boolean containsAny(String value, String... keywords) {
+		return List.of(keywords).stream().anyMatch(value::contains);
 	}
 }

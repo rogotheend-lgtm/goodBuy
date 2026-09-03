@@ -31,7 +31,8 @@ const MOCK_TRANSACTIONS = [
 
 /** 실제 OCR 대신 고정 예시 결과를 반환해 결과 화면을 개발할 수 있게 합니다. */
 export async function createMockAnalysis({ images }) {
-  await delay(700 + images.length * 250)
+  // 실제 OCR을 호출할 때 보이는 로딩 화면을 mock에서도 충분히 확인할 수 있게 합니다.
+  await delay(2000 + images.length * 350)
 
   const transactions = MOCK_TRANSACTIONS.map(
     ([

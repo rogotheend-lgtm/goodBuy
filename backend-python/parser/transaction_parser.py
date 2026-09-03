@@ -6,7 +6,7 @@ from domain.models import ExpenseItem, ExpenseParsedResult, Summary
 from ocr.token import OCRToken
 
 from .amount import parse_expense_amount
-from .counterparty import is_bad_counterparty_candidate
+from .counterparty import is_bad_counterparty_candidate, normalize_counterparty
 
 
 @dataclass
@@ -83,7 +83,7 @@ class TransactionParser:
 
             transactions.append(
                 ExpenseItem(
-                    counterparty=candidate.counterparty.text,
+                    counterparty=normalize_counterparty(candidate.counterparty.text),
                     amount=candidate.amount,
                 )
             )
@@ -134,10 +134,12 @@ class TransactionParser:
                 continue
 
             # --------------------------------------------------
-            # 금액보다 오른쪽에 있는 텍스트는 제외
+            # 금액과 수평으로 겹치지 않고 완전히 오른쪽에 있는 텍스트는 제외합니다.
+            # 기존 화면은 상호명이 금액 왼쪽에 있지만, 모바일 은행 화면은
+            # 상호명과 금액이 같은 X 좌표에서 위아래로 배치됩니다.
             # --------------------------------------------------
 
-            if token.x1 >= amount_token.x1:
+            if token.x1 >= amount_token.x2:
                 continue
 
             # --------------------------------------------------

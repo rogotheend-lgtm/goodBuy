@@ -16,6 +16,7 @@ import { RouterLink, RouterView } from 'vue-router'
     <nav>
       <RouterLink to="/" active-class="active">업로드</RouterLink>
       <RouterLink to="/result" active-class="active">결과 보기</RouterLink>
+      <span class="nav-placeholder">통계</span>
     </nav>
   </header>
 
@@ -39,6 +40,7 @@ body { margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", sans-serif;
 nav { display: flex; gap: 28px; }
 nav a { font-size: 13px; font-weight: 500; color: #9ca3af; text-decoration: none; }
 nav a.active { font-weight: 700; color: #2f5cff; }
+.nav-placeholder { color: #9ca3af; font-size: 13px; font-weight: 500; }
 
 @media (max-width: 520px) {
   .navbar { height: 60px; padding: 0 16px; }
@@ -47,5 +49,6 @@ nav a.active { font-weight: 700; color: #2f5cff; }
   .tag { display: none; }
   nav { gap: 12px; }
   nav a { font-size: 12px; white-space: nowrap; }
+  .nav-placeholder { display: none; }
 }
 </style>

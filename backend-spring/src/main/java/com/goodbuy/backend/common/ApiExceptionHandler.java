@@ -1,5 +1,6 @@
 package com.goodbuy.backend.common;
 
+import com.goodbuy.backend.catalog.CategoryCatalogUnavailableException;
 import com.goodbuy.backend.ocr.client.OcrServiceException;
 import com.goodbuy.backend.ocr.validation.InvalidOcrResponseException;
 import org.springframework.http.HttpStatus;
@@ -21,6 +22,11 @@ public class ApiExceptionHandler {
 	@ExceptionHandler({OcrServiceException.class, InvalidOcrResponseException.class})
 	ResponseEntity<ProblemDetail> handleOcrFailure(RuntimeException exception) {
 		return problem(HttpStatus.BAD_GATEWAY, "OCR_SERVICE_ERROR", exception.getMessage());
+	}
+
+	@ExceptionHandler(CategoryCatalogUnavailableException.class)
+	ResponseEntity<ProblemDetail> handleCategoryCatalogFailure(CategoryCatalogUnavailableException exception) {
+		return problem(HttpStatus.SERVICE_UNAVAILABLE, "CATEGORY_CATALOG_UNAVAILABLE", exception.getMessage());
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)

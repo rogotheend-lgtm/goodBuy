@@ -40,7 +40,7 @@ public class AnalysisController {
 	@Operation(
 			summary = "거래내역 이미지 분석",
 			description = "PNG 또는 JPEG 이미지 1~5장과 계좌 소유자 이름을 받아 이미지를 순서대로 OCR 처리한 뒤 "
-					+ "결과를 DB에 저장하고 프론트엔드에 즉시 반환합니다. 감지된 이상치는 이유와 상세 설명만 "
+					+ "요청과 결과를 저장하지 않고 프론트엔드에 즉시 반환합니다. 감지된 이상치는 이유와 상세 설명만 "
 					+ "출력하고 사용자 재입력을 요구하지 않습니다.")
 	@ApiResponses({
 			@ApiResponse(
@@ -49,7 +49,8 @@ public class AnalysisController {
 					content = @Content(schema = @Schema(implementation = AnalysisResponse.class))),
 			@ApiResponse(responseCode = "400", description = "잘못된 이름 또는 이미지", content = @Content),
 			@ApiResponse(responseCode = "413", description = "파일당 10MB 또는 요청 전체 50MB 초과", content = @Content),
-			@ApiResponse(responseCode = "502", description = "Python OCR 호출 또는 응답 검증 실패", content = @Content)
+			@ApiResponse(responseCode = "502", description = "Python OCR 호출 또는 응답 검증 실패", content = @Content),
+			@ApiResponse(responseCode = "503", description = "DB 카테고리 기준 조회 실패", content = @Content)
 	})
 	@PostMapping(
 			consumes = MediaType.MULTIPART_FORM_DATA_VALUE,
@@ -62,7 +63,7 @@ public class AnalysisController {
 		// 1. 업로드 파일을 검사하고 Python OCR에 전달할 형태로 바꿉니다.
 		var requests = requestValidator.validateAndConvert(images, ownerName);
 
-		// 2. OCR과 거래 분류가 끝난 결과를 DB에 저장하고 바로 반환합니다.
+		// 2. OCR과 거래 분류가 끝난 결과를 저장하지 않고 바로 반환합니다.
 		return ResponseEntity.ok(analysisService.analyze(ownerName, requests));
 	}
 }

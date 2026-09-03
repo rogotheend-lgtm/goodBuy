@@ -123,6 +123,7 @@
     .post { background: var(--green); }
     .get { background: var(--blue); }
     .patch { background: var(--orange); }
+    .select { background: var(--violet); }
 
     code {
       overflow-wrap: anywhere;
@@ -181,7 +182,7 @@
         <li class="api-row">
           <span class="method post">POST</span>
           <code>/api/v1/analyses</code>
-          <p class="description">이미지 1~5장과 계좌 소유자 이름을 받아 OCR·분류하고, 결과를 DB에 저장하면서 즉시 반환합니다.</p>
+          <p class="description">이미지 1~5장과 계좌 소유자 이름을 받아 OCR·분류하고, 요청 기록을 남기지 않은 채 결과를 즉시 반환합니다.</p>
         </li>
       </ul>
     </section>
@@ -196,6 +197,20 @@
           <span class="method post">POST</span>
           <code>/ocr/extraction</code>
           <p class="description">이미지를 Python OCR에 전달하고 거래 대상과 금액을 받습니다.</p>
+        </li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="database-query-title">
+      <div class="section-title">
+        <h2 id="database-query-title">Spring → Supabase</h2>
+        <span>읽기 전용 쿼리 1개</span>
+      </div>
+      <ul class="api-list">
+        <li class="api-row">
+          <span class="method select">SELECT</span>
+          <code>categories LEFT JOIN category_rules</code>
+          <p class="description">OCR 완료 후 카테고리명·키워드·이상치 기준·GIF 주소를 한 번 조회하며 사용자 요청은 저장하지 않습니다.</p>
         </li>
       </ul>
     </section>
@@ -216,7 +231,7 @@
 
     <section aria-labelledby="flow-title">
       <div class="section-title"><h2 id="flow-title">전체 흐름</h2></div>
-      <div class="flow">Frontend → Spring → Python OCR → Spring 분류·이상치 감지 → PostgreSQL 저장 + Frontend 즉시 응답</div>
+      <div class="flow">Frontend → Spring → Python OCR → Spring → Supabase 카테고리 조회 → Spring 분류·이상치 감지 → Frontend 즉시 응답 (요청 기록 없음)</div>
     </section>
 
     <p class="note">현재 OCR_MODE=mock에서는 샘플 거래 10건을 반환하며, 실제 OCR은 Python 서버 연결 후 동작합니다.</p>

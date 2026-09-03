@@ -1,4 +1,7 @@
+from io import BytesIO
+
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from app import MockOcrEngine, create_app
 
@@ -43,3 +46,26 @@ def test_health_reports_loaded_engine() -> None:
 
     assert response.status_code == 200
     assert response.json()["engineLoaded"] is True
+
+
+def test_resizes_large_image_before_ocr() -> None:
+    recognized_sizes: list[tuple[int, int]] = []
+
+    class SizeRecordingEngine:
+        def recognize(self, image_path):
+            with Image.open(image_path) as image:
+                recognized_sizes.append(image.size)
+            return []
+
+    image_bytes = BytesIO()
+    Image.new("RGB", (2500, 100), "white").save(image_bytes, format="PNG")
+    application = create_app(SizeRecordingEngine)
+
+    with TestClient(application) as client:
+        response = client.post(
+            "/ocr/extraction",
+            files={"file": ("large.png", image_bytes.getvalue(), "image/png")},
+        )
+
+    assert response.status_code == 200
+    assert recognized_sizes == [(1280, 51)]
