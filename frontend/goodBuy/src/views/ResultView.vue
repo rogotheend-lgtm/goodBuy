@@ -64,8 +64,8 @@ const reportSummary = computed(() => {
   const summary = analysis.value.summary
   const leadingCategory = topCategory.value
   const anomalyText = summary.anomalyCount
-    ? `결제·송금 구분이 필요한 이상치 ${summary.anomalyCount}건(${formatWon(summary.anomalyAmount)})도 함께 표시했어요.`
-    : '별도로 확인할 이상치는 없어요.'
+    ? `결제·송금 구분이 필요한 기타 ${summary.anomalyCount}건(${formatWon(summary.anomalyAmount)})도 함께 표시했어요.`
+    : '별도로 확인할 소비내역은 없어요.'
 
   if (!leadingCategory) {
     return `이번 분석에서 확정된 소비가 아직 없어요. ${anomalyText}`
