@@ -69,7 +69,6 @@ Content-Type: application/json
       "personalAmount": 0,
       "transactionType": "ANOMALY",
       "purposeCategory": "OTHER",
-      "merchantType": "PAYMENT_GATEWAY",
       "anomaly": true,
       "anomalyReason": "AMBIGUOUS_PAYMENT_GATEWAY",
       "anomalyDetail": "결제 플랫폼명만으로 결제와 송금을 구분할 수 없어 이상치로 표시했습니다. 소비 합계에서 제외했습니다."
@@ -92,6 +91,9 @@ Content-Type: application/json
 
 ### 3.3 거래 필드
 
+카테고리는 아래 `purposeCategory` 하나로 전달합니다. 별도 업종 필드는 반환하지 않습니다.
+결제대행명은 카테고리가 아닌 이상치 조건이며, 기존 `anomalyReason`과 `anomalyDetail`을 사용합니다.
+
 | 필드명 | 타입 | 필수 | 설명 |
 | --- | --- | --- | --- |
 | `counterparty` | String | O | 가맹점, 이체 수신자 또는 결제 플랫폼 이름 |
@@ -99,7 +101,6 @@ Content-Type: application/json
 | `personalAmount` | Long | O | 확정 소비 합계에 포함되는 본인 부담 금액 |
 | `transactionType` | Enum String | O | 거래 분류 |
 | `purposeCategory` | Enum String | O | 소비 목적 카테고리 |
-| `merchantType` | Enum String | O | 가맹점 업종 분류 |
 | `anomaly` | Boolean | O | 이상치 감지 여부 |
 | `anomalyReason` | Enum String | O | 이상치 판단 이유. 정상 거래는 `NONE` |
 | `anomalyDetail` | String 또는 null | O | 사용자에게 표시할 이상치 설명. 정상 거래는 `null` |
@@ -153,11 +154,7 @@ Content-Type: application/json
 | `FIXED_SUBSCRIPTION` | 고정비·구독 |
 | `OTHER` | 기타 |
 
-### 4.3 merchantType
-
-`CAFE`, `RESTAURANT`, `MEAT_RESTAURANT`, `FAST_FOOD`, `CONVENIENCE_STORE`, `MART`, `HOUSEHOLD_STORE`, `PAYMENT_GATEWAY`, `OTHER`
-
-### 4.4 anomalyReason
+### 4.3 anomalyReason
 
 | 값 | 의미 |
 | --- | --- |

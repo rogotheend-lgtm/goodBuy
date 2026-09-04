@@ -54,7 +54,7 @@ VITE_ANALYSIS_MODE=backend npm run dev
 | 기본 OCR 분석 결과 | Mock | 기본 실행에서는 업로드 이미지 내용을 읽지 않고 고정 예시 거래를 반환합니다. |
 | 실제 OCR | 선택 가능 | Spring을 `OCR_MODE=python`으로 실행하면 Python PaddleOCR 결과를 사용합니다. |
 | AI 요약 문구 | Mock | 기존 합계·카테고리 필드로 프론트에서 예시 문장을 생성합니다. |
-| 소비 반응 GIF | Mock | 현재는 고정 예시 GIF이며 추후 GIF API 결과로 교체할 수 있습니다. |
+| 소비 반응 GIF | 실제 응답 연동 / Mock | backend 모드는 `dominantCategory.gifUrl`을 사용하고 로드 실패 시 로컬 GIF로 대체합니다. mock 모드는 고정 GIF를 사용합니다. |
 | 결과 기록·재조회 | 미구현 | 로그인, 브라우저 저장, 결과 조회 API 없이 현재 화면 메모리에만 보관합니다. |
 
 ### Compile and Minify for Production
@@ -62,6 +62,19 @@ VITE_ANALYSIS_MODE=backend npm run dev
 ```sh
 npm run build
 ```
+
+### Category Contract Tests
+
+카테고리는 `purposeCategory`의 9개 값만 사용합니다. 별도 업종 필드는 없으며,
+결제대행 여부는 `anomalyReason`과 `anomalyDetail`로 설명합니다.
+
+```sh
+npm test
+```
+
+이 테스트는 mock 배열에서 필드를 제거하면서 이상치 값이 밀리지 않았는지,
+기존 합계·대표 카테고리·GIF가 유지되는지 검사합니다. mock의 개별 가맹점 매핑은
+이번 구조 정리에서 변경하지 않았으며 실제 DB/Fallback과 별도로 관리됩니다.
 
 ### Lint with [ESLint](https://eslint.org/)
 

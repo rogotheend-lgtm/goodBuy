@@ -3,7 +3,6 @@ package com.goodbuy.backend.analysis.service;
 import com.goodbuy.backend.analysis.domain.AnomalyReason;
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
 import com.goodbuy.backend.analysis.domain.MerchantClassification;
-import com.goodbuy.backend.analysis.domain.MerchantType;
 import com.goodbuy.backend.analysis.domain.PurposeCategory;
 import com.goodbuy.backend.analysis.domain.TransactionType;
 import com.goodbuy.backend.catalog.CategoryMapping;
@@ -37,7 +36,6 @@ public class TransactionClassifier {
 					TransactionType.SELF_TRANSFER,
 					PurposeCategory.OTHER,
 					null,
-					MerchantType.OTHER,
 					true,
 					AnomalyReason.SELF_TRANSFER,
 					"입력한 이름과 거래 상대명이 일치하여 본인 계좌 이체로 판단했습니다. 소비 합계에서 제외했습니다.");
@@ -46,7 +44,7 @@ public class TransactionClassifier {
 		MerchantClassification merchant = merchantClassifier.classify(item.counterparty(), categoryMappings);
 
 		// 2순위: 결제와 송금을 구분할 수 없는 간편결제명은 이상치로 알리고 합계에서 제외합니다.
-		if (merchant.merchantType() == MerchantType.PAYMENT_GATEWAY) {
+		if (isAmbiguousPaymentGateway(item.counterparty())) {
 			return excludedAnomaly(
 					item,
 					merchant,
@@ -63,7 +61,6 @@ public class TransactionClassifier {
 					TransactionType.EXPENSE,
 					merchant.purposeCategory(),
 					merchant.gifUrl(),
-					merchant.merchantType(),
 					true,
 					AnomalyReason.GROUP_PAYMENT_CANDIDATE,
 					"카테고리 " + merchant.purposeCategory() + "의 기준 금액 " + merchant.dutchThreshold()
@@ -77,7 +74,6 @@ public class TransactionClassifier {
 				TransactionType.EXPENSE,
 				merchant.purposeCategory(),
 				merchant.gifUrl(),
-				merchant.merchantType(),
 				false,
 				AnomalyReason.NONE,
 				null);
@@ -87,6 +83,15 @@ public class TransactionClassifier {
 		String normalizedOwnerName = nameNormalizer.normalize(ownerName);
 		return !normalizedOwnerName.isBlank()
 				&& normalizedOwnerName.equals(nameNormalizer.normalize(counterparty));
+	}
+
+	private boolean isAmbiguousPaymentGateway(String counterparty) {
+		String normalized = nameNormalizer.normalize(counterparty);
+
+		// 소비 카테고리와 별개인 이상치 조건입니다. 기존 키워드 판단을 유지합니다.
+		return normalized.contains("토스페이")
+				|| normalized.contains("카카오페이")
+				|| normalized.contains("네이버페이");
 	}
 
 	private ClassifiedTransaction excludedAnomaly(
@@ -101,7 +106,6 @@ public class TransactionClassifier {
 				TransactionType.ANOMALY,
 				merchant.purposeCategory(),
 				merchant.gifUrl(),
-				merchant.merchantType(),
 				true,
 				anomalyReason,
 				anomalyDetail);

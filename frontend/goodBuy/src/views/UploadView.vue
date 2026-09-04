@@ -19,7 +19,17 @@ let progressTimer
 const MAX_FILE_COUNT = 5
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg'])
-const MOCK_CATEGORY_SEQUENCE = ['카페', '쇼핑', '생활', '식비', '기타']
+const MOCK_CATEGORY_SEQUENCE = [
+  '식비',
+  '교통',
+  '생활',
+  '쇼핑',
+  '문화·취미',
+  '건강',
+  '교육',
+  '고정·구독',
+  '기타',
+]
 
 const normalizedNameLength = computed(() => name.value.replace(/\s/g, '').length)
 const nameIsValid = computed(
