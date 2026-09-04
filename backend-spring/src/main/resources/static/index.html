@@ -478,7 +478,7 @@
         : transaction.transactionType === "EXPENSE" ? "" : "excluded";
       return `
         <tr>
-          <td><strong>${escapeHtml(transaction.counterparty)}</strong><br><small>${escapeHtml(transaction.merchantType)}</small></td>
+          <td><strong>${escapeHtml(transaction.counterparty)}</strong></td>
           <td class="amount">${formatWon(transaction.originalAmount)}</td>
           <td class="amount">${formatWon(transaction.personalAmount)}</td>
           <td><span class="type-pill ${typeClass}">${labels[transaction.transactionType] || transaction.transactionType}</span></td>

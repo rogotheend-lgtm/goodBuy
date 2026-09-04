@@ -38,7 +38,8 @@ cd /Users/lim/goodBuy
 - 입력한 이름과 거래 대상이 공백/대소문자/유니코드 정규화 후 정확히 같으면 `SELF_TRANSFER` 이상치로 표시하고 소비 합계에서 제외합니다.
 - `토스페이`, `카카오페이`, `네이버페이`처럼 결제인지 송금인지 확정할 수 없는 항목은 `ANOMALY`로 표시하고 이유를 출력합니다.
 - 거래 금액이 DB 카테고리의 `dutch_threshold`를 초과하면 `GROUP_PAYMENT_CANDIDATE`로 표시하되 소비 합계에는 포함합니다.
-- 사용 목적(`purposeCategory`)과 가맹점 형태(`merchantType`)를 분리합니다.
+- 소비 카테고리는 `purposeCategory`의 9개 값으로 통일합니다. 별도의 업종 필드는 반환하지 않습니다.
+- 결제대행명 여부는 카테고리와 별개인 내부 이상치 조건으로 판단합니다.
 - 이상치는 사용자에게 재입력을 요청하지 않으며 `anomalyDetail`을 통해 탐지 근거만 안내합니다.
 
 현재 목적 카테고리는 `FOOD`, `TRANSPORT`, `LIVING`, `SHOPPING`, `CULTURE_HOBBY`, `HEALTH`, `EDUCATION`, `FIXED_SUBSCRIPTION`, `OTHER`입니다. 정상 상황에서는 키워드·기준 금액·GIF URL 모두 Supabase 값을 사용하며 DB 함수는 호출하지 않습니다. DB 연결 실패·빈 카탈로그·알 수 없는 카테고리 값이 발생하면 동일한 9개 카테고리의 간단한 내장 기본값으로 분석을 완료하고 응답의 `categoryCatalogSource`를 `FALLBACK`으로 표시합니다.

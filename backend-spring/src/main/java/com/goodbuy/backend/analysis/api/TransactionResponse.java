@@ -1,7 +1,6 @@
 package com.goodbuy.backend.analysis.api;
 
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
-import com.goodbuy.backend.analysis.domain.MerchantType;
 import com.goodbuy.backend.analysis.domain.PurposeCategory;
 import com.goodbuy.backend.analysis.domain.AnomalyReason;
 import com.goodbuy.backend.analysis.domain.TransactionType;
@@ -19,8 +18,6 @@ public record TransactionResponse(
 		TransactionType transactionType,
 		@Schema(description = "소비 목적 카테고리", example = "OTHER")
 		PurposeCategory purposeCategory,
-		@Schema(description = "가맹점 업종", example = "PAYMENT_GATEWAY")
-		MerchantType merchantType,
 		@Schema(description = "시스템이 감지한 이상치 여부", example = "true")
 		boolean anomaly,
 		@Schema(description = "이상치 감지 이유", example = "AMBIGUOUS_PAYMENT_GATEWAY")
@@ -38,7 +35,6 @@ public record TransactionResponse(
 				transaction.personalAmount(),
 				transaction.transactionType(),
 				transaction.purposeCategory(),
-				transaction.merchantType(),
 				transaction.anomaly(),
 				transaction.anomalyReason(),
 				transaction.anomalyDetail());

@@ -3,7 +3,6 @@ package com.goodbuy.backend.analysis;
 import com.goodbuy.backend.analysis.domain.AnalysisSummary;
 import com.goodbuy.backend.analysis.domain.AnomalyReason;
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
-import com.goodbuy.backend.analysis.domain.MerchantType;
 import com.goodbuy.backend.analysis.domain.PurposeCategory;
 import com.goodbuy.backend.analysis.domain.TransactionType;
 import com.goodbuy.backend.analysis.service.AnalysisSummaryCalculator;
@@ -14,10 +13,13 @@ import com.goodbuy.backend.catalog.CategoryMapping;
 import com.goodbuy.backend.ocr.dto.OcrTransactionItem;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionClassifierTests {
@@ -60,7 +62,8 @@ class TransactionClassifierTests {
 				new OcrTransactionItem("김세빈커피", 3_000));
 
 		assertEquals(TransactionType.EXPENSE, transaction.transactionType());
-		assertEquals(MerchantType.CAFE, transaction.merchantType());
+		assertEquals(PurposeCategory.FOOD, transaction.purposeCategory());
+		assertEquals(3_000, transaction.personalAmount());
 	}
 
 	@Test
@@ -75,6 +78,33 @@ class TransactionClassifierTests {
 		assertTrue(transaction.anomalyDetail().contains("결제와 송금을 구분"));
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {"토스페이_TOSS", "카카오페이", "네이버페이", "토스 페이", "카카오 페이", "네이버 페이"})
+	void keepsGatewayExclusionAheadOfAmountThresholdWithoutIndustryType(String counterparty) {
+		var transaction = classify("김세빈", new OcrTransactionItem(counterparty, 200_000));
+		assertEquals(TransactionType.ANOMALY, transaction.transactionType());
+		assertEquals(AnomalyReason.AMBIGUOUS_PAYMENT_GATEWAY, transaction.anomalyReason());
+		assertEquals(0, transaction.personalAmount());
+		assertEquals(200_000, transaction.originalAmount());
+	}
+
+	@Test
+	void keepsOwnerNameMatchAheadOfGatewayDetection() {
+		var transaction = classify("토스페이", new OcrTransactionItem("토스 페이", 200_000));
+		assertEquals(TransactionType.SELF_TRANSFER, transaction.transactionType());
+		assertEquals(AnomalyReason.SELF_TRANSFER, transaction.anomalyReason());
+		assertEquals(0, transaction.personalAmount());
+	}
+
+	@Test
+	void doesNotTreatEveryOtherCategoryAsPaymentGateway() {
+		var transaction = classify("김세빈", new OcrTransactionItem("처음보는가게", 3_000));
+		assertEquals(PurposeCategory.OTHER, transaction.purposeCategory());
+		assertEquals(TransactionType.EXPENSE, transaction.transactionType());
+		assertEquals(3_000, transaction.personalAmount());
+		assertFalse(transaction.anomaly());
+	}
+
 	@Test
 	void includesLargePaymentInExpenseAndOnlyWarnsWhenThresholdIsExceeded() {
 		ClassifiedTransaction equalToThreshold = classify(
@@ -85,6 +115,8 @@ class TransactionClassifierTests {
 				new OcrTransactionItem("소촌숯불갈비", 40_000));
 
 		assertEquals(AnomalyReason.NONE, equalToThreshold.anomalyReason());
+		assertEquals(30_000, equalToThreshold.personalAmount());
+		assertFalse(equalToThreshold.anomaly());
 		assertEquals(TransactionType.EXPENSE, overThreshold.transactionType());
 		assertEquals(40_000, overThreshold.personalAmount());
 		assertEquals(AnomalyReason.GROUP_PAYMENT_CANDIDATE, overThreshold.anomalyReason());

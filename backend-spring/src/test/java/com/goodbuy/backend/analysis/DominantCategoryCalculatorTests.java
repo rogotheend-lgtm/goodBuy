@@ -2,7 +2,6 @@ package com.goodbuy.backend.analysis;
 
 import com.goodbuy.backend.analysis.domain.AnomalyReason;
 import com.goodbuy.backend.analysis.domain.ClassifiedTransaction;
-import com.goodbuy.backend.analysis.domain.MerchantType;
 import com.goodbuy.backend.analysis.domain.PurposeCategory;
 import com.goodbuy.backend.analysis.domain.TransactionType;
 import com.goodbuy.backend.analysis.service.DominantCategoryCalculator;
@@ -45,7 +44,6 @@ class DominantCategoryCalculatorTests {
 				TransactionType.EXPENSE,
 				category,
 				gifUrl,
-				MerchantType.OTHER,
 				false,
 				AnomalyReason.NONE,
 				null);
