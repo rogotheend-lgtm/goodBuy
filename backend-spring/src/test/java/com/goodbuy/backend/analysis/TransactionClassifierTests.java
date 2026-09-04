@@ -106,7 +106,7 @@ class TransactionClassifierTests {
 	}
 
 	@Test
-	void includesLargePaymentInExpenseAndOnlyWarnsWhenThresholdIsExceeded() {
+	void excludesLargePaymentFromExpenseWhenThresholdIsExceeded() {
 		ClassifiedTransaction equalToThreshold = classify(
 				"김세빈",
 				new OcrTransactionItem("벌크커피", 30_000));
@@ -117,10 +117,10 @@ class TransactionClassifierTests {
 		assertEquals(AnomalyReason.NONE, equalToThreshold.anomalyReason());
 		assertEquals(30_000, equalToThreshold.personalAmount());
 		assertFalse(equalToThreshold.anomaly());
-		assertEquals(TransactionType.EXPENSE, overThreshold.transactionType());
-		assertEquals(40_000, overThreshold.personalAmount());
+		assertEquals(TransactionType.ANOMALY, overThreshold.transactionType());
+		assertEquals(0, overThreshold.personalAmount());
 		assertEquals(AnomalyReason.GROUP_PAYMENT_CANDIDATE, overThreshold.anomalyReason());
-		assertTrue(overThreshold.anomalyDetail().contains("소비 합계에는 포함"));
+		assertTrue(overThreshold.anomalyDetail().contains("확정 소비 합계에서 제외"));
 	}
 
 	@Test
@@ -134,10 +134,12 @@ class TransactionClassifierTests {
 		AnalysisSummary summary = new AnalysisSummaryCalculator().calculate(transactions);
 
 		assertEquals(98_530, summary.parsedAmount());
-		assertEquals(47_900, summary.expenseAmount());
+		assertEquals(7_900, summary.expenseAmount());
 		assertEquals(50_000, summary.selfTransferAmount());
 		assertEquals(3, summary.anomalyCount());
 		assertEquals(90_630, summary.anomalyAmount());
+		assertEquals(summary.parsedAmount(), summary.expenseAmount() + summary.anomalyAmount());
+		assertEquals(summary.parsedCount(), summary.expenseCount() + summary.anomalyCount());
 	}
 
 	private ClassifiedTransaction classify(String ownerName, OcrTransactionItem item) {
