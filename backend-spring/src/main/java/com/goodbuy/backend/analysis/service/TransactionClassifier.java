@@ -52,19 +52,19 @@ public class TransactionClassifier {
 					"결제 플랫폼명만으로 결제와 송금을 구분할 수 없어 이상치로 표시했습니다. 소비 합계에서 제외했습니다.");
 		}
 
-		// 3순위: DB 카테고리 기준을 초과한 거래는 합계에 포함하고 경고만 출력합니다.
+		// 3순위: DB 카테고리 기준을 초과한 거래는 이상치로 표시하고 확정 소비에서 제외합니다.
 		if (item.amount() > merchant.dutchThreshold()) {
 			return new ClassifiedTransaction(
 					item.counterparty(),
 					item.amount(),
-					item.amount(),
-					TransactionType.EXPENSE,
+					0,
+					TransactionType.ANOMALY,
 					merchant.purposeCategory(),
 					merchant.gifUrl(),
 					true,
 					AnomalyReason.GROUP_PAYMENT_CANDIDATE,
 					"카테고리 " + merchant.purposeCategory() + "의 기준 금액 " + merchant.dutchThreshold()
-							+ "원을 초과한 거래입니다. 단체 결제 가능성을 표시했으며 소비 합계에는 포함했습니다.");
+							+ "원을 초과한 거래입니다. 단체 결제 가능성을 표시하고 확정 소비 합계에서 제외했습니다.");
 		}
 
 		return new ClassifiedTransaction(
